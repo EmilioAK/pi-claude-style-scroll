@@ -1,0 +1,67 @@
+{
+  "name": "pi-sticky-input",
+  "version": "0.1.0",
+  "description": "Pi extension that keeps chat input bounded and anchored while session history updates.",
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "config/config.example.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "npx --yes -p typescript@5.7.3 tsc -p tsconfig.json",
+    "build": "npx --yes -p typescript@5.7.3 tsc -p tsconfig.json --noCheck",
+    "lint": "npm run typecheck",
+    "test": "node --test test/*.test.cjs",
+    "check": "npm run lint && npm run test && npm run build",
+    "package:dry-run": "npm pack --dry-run"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "pi-coding-agent",
+    "pi-tui",
+    "coding-agent",
+    "sticky-input",
+    "chat-input",
+    "terminal",
+    "alternate-screen",
+    "footer"
+  ],
+  "author": "MasuRii",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MasuRii/pi-sticky-input.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MasuRii/pi-sticky-input/issues"
+  },
+  "homepage": "https://github.com/MasuRii/pi-sticky-input#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0 || ^0.75.0",
+    "@earendil-works/pi-tui": "^0.74.0 || ^0.75.0"
+  },
+  "devDependencies": {
+    "jiti": "^2.7.0"
+  }
+}

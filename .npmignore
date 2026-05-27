@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+.test-dist
+config.json
+debug/
+test/
+tests/
+.git
+.gitignore
+.npmignore
+tsconfig.json
+package-lock.json
+*.log
+*.tmp
+.DS_Store
