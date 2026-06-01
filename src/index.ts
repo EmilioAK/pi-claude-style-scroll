@@ -1,35 +1,22 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
-import {
-  applyStickyMouseScrollMode,
-  getStickyInputCommandHelp,
-  getStickyMouseScrollStatusMessage,
-  parseStickyInputCommandArgs,
-} from "./commands/mouse-scroll-command.js";
-import { loadStickyInputConfig, type StickyInputConfigLoadResult } from "./config/config.js";
-import { DebugLogger } from "./logging/debug-logger.js";
-import {
-  applyStickySplitFooterRendererPatch,
-  configureStickySplitFooterRenderer,
-  getStickySplitFooterPatchStatus,
-  resetStickySplitFooterViewport,
-  scrollStickySplitFooterViewport,
-  type StickySplitFooterPatchStatus,
-} from "./tui/split-footer-renderer.js";
-import {
-  activateStickyTerminalSession,
-  deactivateStickyTerminalSession,
-  getActiveStickyTerminalTui,
-  getKeyboardScrollRows as getTerminalKeyboardScrollRows,
-  isMouseInput,
-  shouldHandleStickyTerminalInput,
-  parseAlternateScrollInput,
-  parseMouseWheelInput,
-} from "./tui/terminal-session.js";
+type MouseScrollCommandModule = typeof import("./commands/mouse-scroll-command.js");
+type ConfigModule = typeof import("./config/config.js");
+type DebugLoggerModule = typeof import("./logging/debug-logger.js");
+type SplitFooterRendererModule = typeof import("./tui/split-footer-renderer.js");
+type TerminalSessionModule = typeof import("./tui/terminal-session.js");
+type StickyInputConfigLoadResult = import("./config/config.js").StickyInputConfigLoadResult;
+type DebugLogger = import("./logging/debug-logger.js").DebugLogger;
+type StickySplitFooterPatchStatus = import("./tui/split-footer-renderer.js").StickySplitFooterPatchStatus;
 
 const EXTENSION_ID = "pi-sticky-input";
 const RUNTIME_PATCH_WIDGET_KEY = `${EXTENSION_ID}:runtime-renderer-hook`;
+const DEFAULT_PATCH_STATUS: StickySplitFooterPatchStatus = {
+  installed: false,
+  active: false,
+  reason: "not-loaded",
+};
 
 interface RuntimeState {
   configResult: StickyInputConfigLoadResult;
@@ -45,6 +32,84 @@ class StickyRendererHookComponent implements Component {
   invalidate(): void {
     // No cached state.
   }
+}
+
+const STICKY_RENDERER_HOOK_COMPONENT = new StickyRendererHookComponent();
+
+let mouseScrollCommandModule: MouseScrollCommandModule | undefined;
+let mouseScrollCommandModulePromise: Promise<MouseScrollCommandModule> | undefined;
+let configModule: ConfigModule | undefined;
+let configModulePromise: Promise<ConfigModule> | undefined;
+let debugLoggerModule: DebugLoggerModule | undefined;
+let debugLoggerModulePromise: Promise<DebugLoggerModule> | undefined;
+let splitFooterRendererModule: SplitFooterRendererModule | undefined;
+let splitFooterRendererModulePromise: Promise<SplitFooterRendererModule> | undefined;
+let terminalSessionModule: TerminalSessionModule | undefined;
+let terminalSessionModulePromise: Promise<TerminalSessionModule> | undefined;
+
+function loadMouseScrollCommandModule(): Promise<MouseScrollCommandModule> {
+  if (mouseScrollCommandModule) {
+    return Promise.resolve(mouseScrollCommandModule);
+  }
+
+  mouseScrollCommandModulePromise ??= import("./commands/mouse-scroll-command.js")
+    .then((module) => {
+      mouseScrollCommandModule = module;
+      return module;
+    });
+  return mouseScrollCommandModulePromise;
+}
+
+function loadConfigModule(): Promise<ConfigModule> {
+  if (configModule) {
+    return Promise.resolve(configModule);
+  }
+
+  configModulePromise ??= import("./config/config.js")
+    .then((module) => {
+      configModule = module;
+      return module;
+    });
+  return configModulePromise;
+}
+
+function loadDebugLoggerModule(): Promise<DebugLoggerModule> {
+  if (debugLoggerModule) {
+    return Promise.resolve(debugLoggerModule);
+  }
+
+  debugLoggerModulePromise ??= import("./logging/debug-logger.js")
+    .then((module) => {
+      debugLoggerModule = module;
+      return module;
+    });
+  return debugLoggerModulePromise;
+}
+
+function loadSplitFooterRendererModule(): Promise<SplitFooterRendererModule> {
+  if (splitFooterRendererModule) {
+    return Promise.resolve(splitFooterRendererModule);
+  }
+
+  splitFooterRendererModulePromise ??= import("./tui/split-footer-renderer.js")
+    .then((module) => {
+      splitFooterRendererModule = module;
+      return module;
+    });
+  return splitFooterRendererModulePromise;
+}
+
+function loadTerminalSessionModule(): Promise<TerminalSessionModule> {
+  if (terminalSessionModule) {
+    return Promise.resolve(terminalSessionModule);
+  }
+
+  terminalSessionModulePromise ??= import("./tui/terminal-session.js")
+    .then((module) => {
+      terminalSessionModule = module;
+      return module;
+    });
+  return terminalSessionModulePromise;
 }
 
 function getRendererEnabled(configResult: StickyInputConfigLoadResult): boolean {
@@ -64,15 +129,17 @@ function createRendererOptions(configResult: StickyInputConfigLoadResult, logger
   };
 }
 
-function createRuntimeState(): RuntimeState {
+async function createRuntimeState(): Promise<RuntimeState> {
+  const [{ loadStickyInputConfig }, { DebugLogger }] = await Promise.all([
+    loadConfigModule(),
+    loadDebugLoggerModule(),
+  ]);
   const configResult = loadStickyInputConfig();
   const logger = DebugLogger.create(configResult.config);
-  configureStickySplitFooterRenderer(createRendererOptions(configResult, logger));
-  const patchStatus = getStickySplitFooterPatchStatus();
   return {
     configResult,
     logger,
-    patchStatus,
+    patchStatus: splitFooterRendererModule?.getStickySplitFooterPatchStatus() ?? DEFAULT_PATCH_STATUS,
   };
 }
 
@@ -100,23 +167,25 @@ function isEditorTextEmpty(getEditorText: (() => string) | undefined): boolean {
 
 function handleStickyTerminalInput(
   runtime: RuntimeState,
+  terminalSession: TerminalSessionModule,
+  splitFooterRenderer: SplitFooterRendererModule,
   data: string,
   getEditorText?: () => string,
 ): { consume?: boolean; data?: string } | undefined {
   const { config } = runtime.configResult;
-  const tui = getActiveStickyTerminalTui();
+  const tui = terminalSession.getActiveStickyTerminalTui();
 
-  if (!shouldHandleStickyTerminalInput(tui)) {
+  if (!terminalSession.shouldHandleStickyTerminalInput(tui)) {
     return undefined;
   }
 
   const editorTextEmpty = isEditorTextEmpty(getEditorText);
 
   if (config.alternateScroll) {
-    const direction = parseAlternateScrollInput(data, { allowCursorKeys: editorTextEmpty });
+    const direction = terminalSession.parseAlternateScrollInput(data, { allowCursorKeys: editorTextEmpty });
     if (direction) {
       const deltaRows = direction === "up" ? -config.mouseWheelScrollRows : config.mouseWheelScrollRows;
-      const result = scrollStickySplitFooterViewport(tui, deltaRows);
+      const result = splitFooterRenderer.scrollStickySplitFooterViewport(tui, deltaRows);
       runtime.logger.log("terminal_alternate_scroll", {
         direction,
         deltaRows,
@@ -129,11 +198,11 @@ function handleStickyTerminalInput(
     }
   }
 
-  if (config.mouseScroll && isMouseInput(data)) {
-    const direction = parseMouseWheelInput(data);
+  if (config.mouseScroll && terminalSession.isMouseInput(data)) {
+    const direction = terminalSession.parseMouseWheelInput(data);
     if (direction) {
       const deltaRows = direction === "up" ? -config.mouseWheelScrollRows : config.mouseWheelScrollRows;
-      const result = scrollStickySplitFooterViewport(tui, deltaRows);
+      const result = splitFooterRenderer.scrollStickySplitFooterViewport(tui, deltaRows);
       runtime.logger.log("terminal_mouse_scroll", {
         direction,
         deltaRows,
@@ -148,10 +217,10 @@ function handleStickyTerminalInput(
   }
 
   const keyboardScrollRows = config.keyboardScroll
-    ? getTerminalKeyboardScrollRows(data, config.keyboardScrollRows, { allowPlainHomeEnd: editorTextEmpty })
+    ? terminalSession.getKeyboardScrollRows(data, config.keyboardScrollRows, { allowPlainHomeEnd: editorTextEmpty })
     : undefined;
   if (keyboardScrollRows !== undefined) {
-    const result = scrollStickySplitFooterViewport(tui, keyboardScrollRows);
+    const result = splitFooterRenderer.scrollStickySplitFooterViewport(tui, keyboardScrollRows);
     if (result.handled) {
       runtime.logger.log("terminal_keyboard_scroll", {
         deltaRows: keyboardScrollRows,
@@ -166,16 +235,25 @@ function handleStickyTerminalInput(
   return undefined;
 }
 
-function applyRuntimeMouseScrollMode(runtime: RuntimeState, enabled: boolean): void {
+async function applyRuntimeMouseScrollMode(
+  runtime: RuntimeState,
+  command: MouseScrollCommandModule,
+  enabled: boolean,
+): Promise<void> {
   const { config } = runtime.configResult;
-  applyStickyMouseScrollMode(config, enabled);
+  command.applyStickyMouseScrollMode(config, enabled);
 
-  const tui = getActiveStickyTerminalTui();
-  if (!tui || !getRendererEnabled(runtime.configResult)) {
+  if (!getRendererEnabled(runtime.configResult)) {
     return;
   }
 
-  activateStickyTerminalSession(tui, {
+  const terminalSession = await loadTerminalSessionModule();
+  const tui = terminalSession.getActiveStickyTerminalTui();
+  if (!tui) {
+    return;
+  }
+
+  terminalSession.activateStickyTerminalSession(tui, {
     alternateScreen: config.alternateScreen,
     alternateScroll: config.alternateScroll,
     mouseScroll: config.mouseScroll,
@@ -183,29 +261,41 @@ function applyRuntimeMouseScrollMode(runtime: RuntimeState, enabled: boolean): v
   });
 }
 
-function installSplitFooterRendererHook(ctx: ExtensionContext, runtime: RuntimeState): void {
+async function installSplitFooterRendererHook(ctx: ExtensionContext, runtime: RuntimeState): Promise<void> {
   if (!ctx.hasUI) {
     return;
   }
 
   if (!getRendererEnabled(runtime.configResult)) {
-    resetStickySplitFooterViewport(getActiveStickyTerminalTui());
-    deactivateStickyTerminalSession((event, fields) => runtime.logger.log(event, fields));
+    splitFooterRendererModule?.configureStickySplitFooterRenderer(createRendererOptions(runtime.configResult, runtime.logger));
+    splitFooterRendererModule?.resetStickySplitFooterViewport(terminalSessionModule?.getActiveStickyTerminalTui());
+    terminalSessionModule?.deactivateStickyTerminalSession((event, fields) => runtime.logger.log(event, fields));
     ctx.ui.setWidget(RUNTIME_PATCH_WIDGET_KEY, undefined);
     return;
   }
 
+  const [splitFooterRenderer, terminalSession] = await Promise.all([
+    loadSplitFooterRendererModule(),
+    loadTerminalSessionModule(),
+  ]);
+  const patchedTuis = new WeakSet<object>();
+
   ctx.ui.setWidget(
     RUNTIME_PATCH_WIDGET_KEY,
     (tui: TUI) => {
-      runtime.patchStatus = applyStickySplitFooterRendererPatch(
+      if (patchedTuis.has(tui as unknown as object)) {
+        return STICKY_RENDERER_HOOK_COMPONENT;
+      }
+
+      patchedTuis.add(tui as unknown as object);
+      runtime.patchStatus = splitFooterRenderer.applyStickySplitFooterRendererPatch(
         createRendererOptions(runtime.configResult, runtime.logger),
         tui,
       );
 
       const { config } = runtime.configResult;
       if (runtime.patchStatus.installed && runtime.patchStatus.active) {
-        activateStickyTerminalSession(tui, {
+        terminalSession.activateStickyTerminalSession(tui, {
           alternateScreen: config.alternateScreen,
           alternateScroll: config.alternateScroll,
           mouseScroll: config.mouseScroll,
@@ -225,93 +315,135 @@ function installSplitFooterRendererHook(ctx: ExtensionContext, runtime: RuntimeS
         keyboardScrollRows: config.keyboardScrollRows,
         startupRedrawFixCompatibility: "terminal-write-wrapper-safe",
       });
-      return new StickyRendererHookComponent();
+      return STICKY_RENDERER_HOOK_COMPONENT;
     },
     { placement: "belowEditor" },
   );
 }
 
 export default function stickyInputExtension(pi: ExtensionAPI): void {
-  let runtime = createRuntimeState();
+  let runtime: RuntimeState | undefined;
+  let pendingRuntime: Promise<RuntimeState> | undefined;
   let unsubscribeTerminalInput: (() => void) | undefined;
+  let terminalInputListenerGeneration = 0;
+
+  async function refreshRuntimeState(): Promise<RuntimeState> {
+    const nextRuntime = createRuntimeState();
+    pendingRuntime = nextRuntime;
+    try {
+      runtime = await nextRuntime;
+      return runtime;
+    } finally {
+      if (pendingRuntime === nextRuntime) {
+        pendingRuntime = undefined;
+      }
+    }
+  }
+
+  function getRuntimeState(): Promise<RuntimeState> {
+    if (runtime) {
+      return Promise.resolve(runtime);
+    }
+
+    if (pendingRuntime) {
+      return pendingRuntime;
+    }
+
+    return refreshRuntimeState();
+  }
 
   pi.registerCommand("sticky-input", {
     description: "Toggle pi-sticky-input mouse-wheel chat scrolling.",
     handler: async (args, ctx) => {
-      const action = parseStickyInputCommandArgs(args);
+      const command = await loadMouseScrollCommandModule();
+      const action = command.parseStickyInputCommandArgs(args);
       if (action.type === "error") {
         ctx.ui.notify(action.message, "warning");
         return;
       }
 
       if (action.type === "help") {
-        ctx.ui.notify(getStickyInputCommandHelp(), "info");
+        ctx.ui.notify(command.getStickyInputCommandHelp(), "info");
         return;
       }
+
+      const currentRuntime = await getRuntimeState();
 
       if (action.type === "status") {
-        ctx.ui.notify(getStickyMouseScrollStatusMessage(runtime.configResult.config.mouseScroll), "info");
+        ctx.ui.notify(command.getStickyMouseScrollStatusMessage(currentRuntime.configResult.config.mouseScroll), "info");
         return;
       }
 
-      const enabled = action.type === "toggle" ? !runtime.configResult.config.mouseScroll : action.enabled;
-      applyRuntimeMouseScrollMode(runtime, enabled);
-      runtime.logger.log("mouse_scroll_command", {
+      const enabled = action.type === "toggle" ? !currentRuntime.configResult.config.mouseScroll : action.enabled;
+      await applyRuntimeMouseScrollMode(currentRuntime, command, enabled);
+      currentRuntime.logger.log("mouse_scroll_command", {
         enabled,
-        alternateScroll: runtime.configResult.config.alternateScroll,
+        alternateScroll: currentRuntime.configResult.config.alternateScroll,
       });
-      ctx.ui.notify(getStickyMouseScrollStatusMessage(enabled), "info");
+      ctx.ui.notify(command.getStickyMouseScrollStatusMessage(enabled), "info");
     },
   });
 
   function clearTerminalInputListener(): void {
+    terminalInputListenerGeneration += 1;
     unsubscribeTerminalInput?.();
     unsubscribeTerminalInput = undefined;
   }
 
-  function installTerminalInputListener(ctx: ExtensionContext): void {
+  async function installTerminalInputListener(ctx: ExtensionContext, currentRuntime: RuntimeState): Promise<void> {
     clearTerminalInputListener();
 
-    const { config } = runtime.configResult;
+    const { config } = currentRuntime.configResult;
     if (
       !ctx.hasUI
-      || !getRendererEnabled(runtime.configResult)
+      || !getRendererEnabled(currentRuntime.configResult)
       || (!config.alternateScroll && !config.mouseScroll && !config.keyboardScroll)
     ) {
       return;
     }
 
+    const generation = terminalInputListenerGeneration;
+    const [terminalSession, splitFooterRenderer] = await Promise.all([
+      loadTerminalSessionModule(),
+      loadSplitFooterRendererModule(),
+    ]);
+    if (generation !== terminalInputListenerGeneration) {
+      return;
+    }
+
     unsubscribeTerminalInput = ctx.ui.onTerminalInput((data) => handleStickyTerminalInput(
-      runtime,
+      currentRuntime,
+      terminalSession,
+      splitFooterRenderer,
       data,
       () => ctx.ui.getEditorText(),
     ));
   }
 
-  pi.on("resources_discover", (event, ctx) => {
+  pi.on("resources_discover", async (event, ctx) => {
     if (event.reason !== "reload") {
       return;
     }
 
-    runtime = createRuntimeState();
-    installSplitFooterRendererHook(ctx, runtime);
-    installTerminalInputListener(ctx);
+    const currentRuntime = await refreshRuntimeState();
+    await installSplitFooterRendererHook(ctx, currentRuntime);
+    await installTerminalInputListener(ctx, currentRuntime);
   });
 
-  pi.on("session_start", (_event, ctx) => {
-    runtime = createRuntimeState();
-    const { config } = runtime.configResult;
+  pi.on("session_start", async (_event, ctx) => {
+    const currentRuntime = await refreshRuntimeState();
+    const { config } = currentRuntime.configResult;
 
-    notifyWarnings(ctx, runtime.configResult.warnings);
-    installSplitFooterRendererHook(ctx, runtime);
-    installTerminalInputListener(ctx);
-    runtime.logger.log("session_start", {
+    notifyWarnings(ctx, currentRuntime.configResult.warnings);
+    await installSplitFooterRendererHook(ctx, currentRuntime);
+    await installTerminalInputListener(ctx, currentRuntime);
+    currentRuntime.logger.log("session_start", {
       enabled: config.enabled,
       hasUI: ctx.hasUI,
       splitFooterRenderer: config.splitFooterRenderer,
-      splitFooterRendererActive: runtime.patchStatus.active,
-      splitFooterRendererPatchInstalled: runtime.patchStatus.installed,
-      splitFooterRendererPatchReason: runtime.patchStatus.reason,
+      splitFooterRendererActive: currentRuntime.patchStatus.active,
+      splitFooterRendererPatchInstalled: currentRuntime.patchStatus.installed,
+      splitFooterRendererPatchReason: currentRuntime.patchStatus.reason,
       alternateScreen: config.alternateScreen,
       alternateScroll: config.alternateScroll,
       mouseScroll: config.mouseScroll,
@@ -326,12 +458,12 @@ export default function stickyInputExtension(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", (event) => {
     clearTerminalInputListener();
-    resetStickySplitFooterViewport(getActiveStickyTerminalTui());
+    splitFooterRendererModule?.resetStickySplitFooterViewport(terminalSessionModule?.getActiveStickyTerminalTui());
 
     if (event.reason === "quit") {
       return;
     }
 
-    deactivateStickyTerminalSession((logEvent, fields) => runtime.logger.log(logEvent, fields));
+    terminalSessionModule?.deactivateStickyTerminalSession((logEvent, fields) => runtime?.logger.log(logEvent, fields));
   });
 }
