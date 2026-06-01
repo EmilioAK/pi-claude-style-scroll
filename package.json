@@ -1,6 +1,6 @@
 {
   "name": "pi-sticky-input",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension that keeps chat input bounded and anchored while session history updates.",
   "type": "module",
   "main": "./index.ts",

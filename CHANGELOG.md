@@ -4,8 +4,11 @@ All notable changes to this extension will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-01
+
 ### Changed
-- Prepared public release metadata, npm packaging boundaries, repository links, and documentation for manual GitHub/npm review.
+- Deferred submodule loading and runtime state initialization until first use to reduce startup work.
+- Widened peer dependency ranges to `^0.74.0 || ^0.75.0 || ^0.77.0 || ^0.78.0`.
 
 ## [0.1.0] - 2026-05-27
 
