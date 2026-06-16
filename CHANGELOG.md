@@ -4,6 +4,11 @@ All notable changes to this extension will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-16
+
+### Fixed
+- Clamped minimum viewport position when the configured `historyViewportLineLimit` is smaller than the default, preventing the history viewport from showing stale content at the top.
+
 ## [0.1.1] - 2026-06-01
 
 ### Changed
