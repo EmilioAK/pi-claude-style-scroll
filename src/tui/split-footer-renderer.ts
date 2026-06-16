@@ -217,8 +217,10 @@ function getRetainedHistoryBounds(
   historyLineCount: number,
   historyRows: number,
 ): { minimumViewportTop: number; maximumViewportTop: number } {
-  const minimumViewportTop = 0;
-  const maximumViewportTop = Math.max(minimumViewportTop, historyLineCount - historyRows);
+  const maximumViewportTop = Math.max(0, historyLineCount - historyRows);
+  const minimumViewportTop = options.historyViewportLineLimit < DEFAULT_OPTIONS.historyViewportLineLimit
+    ? Math.max(0, historyLineCount - options.historyViewportLineLimit - historyRows)
+    : 0;
   return { minimumViewportTop, maximumViewportTop };
 }
 
