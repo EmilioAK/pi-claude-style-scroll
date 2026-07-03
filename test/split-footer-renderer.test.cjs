@@ -3,173 +3,41 @@ const path = require("node:path");
 const { test } = require("node:test");
 const { createJiti } = require("jiti");
 
+const {
+  Child,
+  Container,
+  createRuntimeTui: createBaseRuntimeTui,
+  patchRuntimeTui: patchBaseRuntimeTui,
+  countAbsoluteRowMoves,
+  rebuildChildren,
+} = require("./helpers/split-footer-fixtures.cjs");
+
 const jiti = createJiti(path.join(__dirname, "split-footer-renderer.test.cjs"), { interopDefault: true });
 const renderer = jiti("../src/tui/split-footer-renderer.ts");
 
-class Child {
-  constructor(lines) {
-    this.lines = lines;
-  }
-
-  render() {
-    return this.lines;
-  }
-
-  invalidate() {}
-}
-
-class Container {
-  constructor(children) {
-    this.children = children;
-  }
-
-  render(width) {
-    return this.children.flatMap((child) => child.render(width));
-  }
-
-  invalidate() {}
-}
-
 function createRuntimeTui() {
-  class RuntimeTui {
-    constructor() {
-      this.history = Array.from({ length: 20 }, (_unused, index) => `history-${index}`);
-      this.sticky = [
-        new Child(["status"]),
-        new Child(["widget-above"]),
-        new Child(["editor"]),
-        new Child(["widget-below"]),
-        new Child(["footer"]),
-      ];
-      this.children = [new Child(this.history), ...this.sticky];
-      this.previousLines = [];
-      this.previousWidth = 0;
-      this.previousHeight = 0;
-      this.cursorRow = 0;
-      this.hardwareCursorRow = 0;
-      this.clearOnShrink = false;
-      this.maxLinesRendered = 0;
-      this.previousViewportTop = 0;
-      this.fullRedrawCount = 0;
-      this.stopped = false;
-      this.overlayStack = [];
-      this.terminal = {
-        columns: 80,
-        rows: 10,
-        writes: [],
-        write(data) {
-          this.writes.push(data);
-        },
-      };
-      this.renderRequests = 0;
-    }
-
-    doRender() {
-      throw new Error("original renderer should not run in supported sticky layout");
-    }
-
-    hasOverlay() {
-      return false;
-    }
-
-    extractCursorPosition() {
-      return null;
-    }
-
-    applyLineResets(lines) {
-      return lines;
-    }
-
-    positionHardwareCursor() {}
-
-    requestRender() {
-      this.renderRequests += 1;
-    }
-  }
-
-  return new RuntimeTui();
+  return createBaseRuntimeTui();
 }
 
 function createRuntimeTuiWithOriginalRenderer() {
-  class RuntimeTui {
-    constructor() {
-      this.history = Array.from({ length: 20 }, (_unused, index) => `history-${index}`);
-      this.sticky = [
-        new Child(["status"]),
-        new Child(["widget-above"]),
-        new Child(["editor"]),
-        new Child(["widget-below"]),
-        new Child(["footer"]),
-      ];
-      this.children = [new Child(this.history), ...this.sticky];
-      this.previousLines = [];
-      this.previousWidth = 0;
-      this.previousHeight = 0;
-      this.cursorRow = 0;
-      this.hardwareCursorRow = 0;
-      this.clearOnShrink = false;
-      this.maxLinesRendered = 0;
-      this.previousViewportTop = 0;
-      this.fullRedrawCount = 0;
-      this.stopped = false;
-      this.overlayStack = [];
-      this.originalPreviousLineCounts = [];
-      this.terminal = {
-        columns: 80,
-        rows: 10,
-        writes: [],
-        write(data) {
-          this.writes.push(data);
-        },
-      };
-      this.renderRequests = 0;
-    }
-
+  const originalPreviousLineCounts = [];
+  const tui = createBaseRuntimeTui({
+    extraState: { originalPreviousLineCounts },
     doRender() {
-      this.originalPreviousLineCounts.push(this.previousLines.length);
-      this.previousLines = [`original-render-${this.originalPreviousLineCounts.length}`];
-      this.previousWidth = this.terminal.columns;
-      this.previousHeight = this.terminal.rows;
-    }
-
+      originalPreviousLineCounts.push(tui.previousLines.length);
+      tui.previousLines = [`original-render-${originalPreviousLineCounts.length}`];
+      tui.previousWidth = tui.terminal.columns;
+      tui.previousHeight = tui.terminal.rows;
+    },
     hasOverlay() {
-      return this.overlayStack.length > 0;
-    }
-
-    extractCursorPosition() {
-      return null;
-    }
-
-    applyLineResets(lines) {
-      return lines;
-    }
-
-    positionHardwareCursor() {}
-
-    requestRender() {
-      this.renderRequests += 1;
-    }
-  }
-
-  return new RuntimeTui();
+      return tui.overlayStack.length > 0;
+    },
+  });
+  return tui;
 }
 
 function patchRuntimeTui(tui) {
-  const status = renderer.applyStickySplitFooterRendererPatch(
-    {
-      enabled: true,
-      minimumHistoryRows: 3,
-      historyViewportLineLimit: 200,
-    },
-    tui,
-  );
-  assert.equal(status.installed, true);
-  assert.equal(status.active, true);
-  return Object.getPrototypeOf(tui).doRender;
-}
-
-function countAbsoluteRowMoves(buffer) {
-  return Array.from(buffer.matchAll(/\x1b\[(\d+);1H/g)).map((match) => Number(match[1]));
+  return patchBaseRuntimeTui(renderer, tui);
 }
 
 test("typing in the sticky editor only rewrites changed viewport rows after the first render", () => {
@@ -247,7 +115,7 @@ test("reduced history keeps multi-row image spans whole when new lines arrive be
     "history-4",
     ...multiRowImageSpan,
   ];
-  tui.children = [new Child(tui.history), ...tui.sticky];
+  rebuildChildren(tui);
 
   doRender.call(tui);
   assert.deepEqual(
@@ -288,7 +156,7 @@ test("scrolling an inline image span to a new screen row forces a full clear red
     ...multiRowImageSpan,
     "history-6",
   ];
-  tui.children = [new Child(tui.history), ...tui.sticky];
+  rebuildChildren(tui);
 
   doRender.call(tui);
   tui.terminal.writes = [];
@@ -334,7 +202,7 @@ test("jumping home to a same-geometry inline image replacement forces a full cle
     "history-9",
     ...bottomImageSpan,
   ];
-  tui.children = [new Child(tui.history), ...tui.sticky];
+  rebuildChildren(tui);
 
   doRender.call(tui);
   assert.deepEqual(tui.previousLines.slice(0, 5), ["history-8", "history-9", ...bottomImageSpan]);
@@ -376,7 +244,7 @@ test("native inline image rows with leading cursor-up prefixes keep their multi-
     "history-4",
     ...nativeImageSpan,
   ];
-  tui.children = [new Child(tui.history), ...tui.sticky];
+  rebuildChildren(tui);
 
   doRender.call(tui);
   assert.deepEqual(
@@ -425,7 +293,7 @@ test("history viewport remains pinned when new history arrives while scrolled up
 test("expanded long tool output can scroll above the retained history line limit", () => {
   const tui = createRuntimeTui();
   tui.history = Array.from({ length: 300 }, (_unused, index) => `expanded-output-${index}`);
-  tui.children = [new Child(tui.history), ...tui.sticky];
+  rebuildChildren(tui);
   const doRender = patchRuntimeTui(tui);
 
   doRender.call(tui);

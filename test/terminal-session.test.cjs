@@ -7,12 +7,7 @@ const jiti = createJiti(path.join(__dirname, "terminal-session.test.cjs"), { int
 const terminalSession = jiti("../src/tui/terminal-session.ts");
 const config = jiti("../src/config/config.ts");
 
-test("default terminal compatibility preserves native selection and links", () => {
-  assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.mouseScroll, false);
-  assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.alternateScroll, false);
-});
-
-test("alternate screen is restored after TUI stop, not before it", () => {
+function createRecordingTui(stop) {
   const events = [];
   const tui = {
     terminal: {
@@ -23,10 +18,18 @@ test("alternate screen is restored after TUI stop, not before it", () => {
     requestRender(force) {
       events.push(`requestRender:${force}`);
     },
-    stop() {
-      events.push("original-stop");
-    },
+    stop,
   };
+  return { events, tui };
+}
+
+test("default terminal compatibility preserves native selection and links", () => {
+  assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.mouseScroll, false);
+  assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.alternateScroll, false);
+});
+
+test("alternate screen is restored after TUI stop, not before it", () => {
+  const { events, tui } = createRecordingTui(() => events.push("original-stop"));
 
   terminalSession.activateStickyTerminalSession(tui, {
     alternateScreen: true,
@@ -43,18 +46,7 @@ test("alternate screen is restored after TUI stop, not before it", () => {
 });
 
 test("mouse tracking can toggle without leaving alternate screen", () => {
-  const events = [];
-  const tui = {
-    terminal: {
-      write(data) {
-        events.push(data);
-      },
-    },
-    requestRender(force) {
-      events.push(`requestRender:${force}`);
-    },
-    stop() {},
-  };
+  const { events, tui } = createRecordingTui(() => {});
 
   terminalSession.activateStickyTerminalSession(tui, {
     alternateScreen: true,

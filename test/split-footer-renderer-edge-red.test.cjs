@@ -3,98 +3,34 @@ const path = require("node:path");
 const { test } = require("node:test");
 const { createJiti } = require("jiti");
 
+const {
+  createRuntimeTui: createBaseRuntimeTui,
+  patchRuntimeTui: patchBaseRuntimeTui,
+  rebuildChildren,
+} = require("./helpers/split-footer-fixtures.cjs");
+
 const jiti = createJiti(path.join(__dirname, "split-footer-renderer-edge-red.test.cjs"), { interopDefault: true });
 const renderer = jiti("../src/tui/split-footer-renderer.ts");
 
-class Child {
-  constructor(lines) {
-    this.lines = lines;
-  }
-
-  render() {
-    return this.lines;
-  }
-
-  invalidate() {}
-}
-
 function createRuntimeTui({ historyLineCount = 20, rows = 10 } = {}) {
-  class RuntimeTui {
-    constructor() {
-      this.history = Array.from({ length: historyLineCount }, (_unused, index) => `history-${index}`);
-      this.sticky = [
-        new Child(["status"]),
-        new Child(["widget-above"]),
-        new Child(["editor"]),
-        new Child(["widget-below"]),
-        new Child(["footer"]),
-      ];
-      this.children = [new Child(this.history), ...this.sticky];
-      this.previousLines = [];
-      this.previousWidth = 0;
-      this.previousHeight = 0;
-      this.cursorRow = 0;
-      this.hardwareCursorRow = 0;
-      this.clearOnShrink = false;
-      this.maxLinesRendered = 0;
-      this.previousViewportTop = 0;
-      this.fullRedrawCount = 0;
-      this.stopped = false;
-      this.overlayStack = [];
-      this.terminal = {
-        columns: 80,
-        rows,
-        writes: [],
-        write(data) {
-          this.writes.push(data);
-        },
-      };
-      this.renderRequests = 0;
-      this.originalRenderCount = 0;
-    }
-
+  let originalRenderCount = 0;
+  const tui = createBaseRuntimeTui({
+    historyLineCount,
+    rows,
+    extraState: { originalRenderCount: 0 },
     doRender() {
-      this.originalRenderCount += 1;
-      this.previousLines = [`original-render-${this.originalRenderCount}`];
-      this.previousWidth = this.terminal.columns;
-      this.previousHeight = this.terminal.rows;
-    }
-
-    hasOverlay() {
-      return false;
-    }
-
-    extractCursorPosition() {
-      return null;
-    }
-
-    applyLineResets(lines) {
-      return lines;
-    }
-
-    positionHardwareCursor() {}
-
-    requestRender() {
-      this.renderRequests += 1;
-    }
-  }
-
-  return new RuntimeTui();
+      originalRenderCount += 1;
+      tui.originalRenderCount = originalRenderCount;
+      tui.previousLines = [`original-render-${originalRenderCount}`];
+      tui.previousWidth = tui.terminal.columns;
+      tui.previousHeight = tui.terminal.rows;
+    },
+  });
+  return tui;
 }
 
 function patchRuntimeTui(tui, options = {}) {
-  const status = renderer.applyStickySplitFooterRendererPatch(
-    {
-      enabled: true,
-      minimumHistoryRows: 3,
-      historyViewportLineLimit: 200,
-      ...options,
-    },
-    tui,
-  );
-  assert.equal(status.installed, true);
-  assert.equal(status.active, true);
-  return Object.getPrototypeOf(tui).doRender;
+  return patchBaseRuntimeTui(renderer, tui, options);
 }
 
 test("ASSUMED: retained history respects configured historyViewportLineLimit while preserving bottom-follow", () => {
@@ -140,7 +76,7 @@ test("oversized inline image fallback clears sticky renderer state before origin
     "",
     "\x1b_Gm=0;\x1b\\\x1b[3A\x1bPqIMAGE_SPAN_TOO_TALL\x1b\\",
   ];
-  tui.children = [new Child(tui.history), ...tui.sticky];
+  rebuildChildren(tui);
 
   doRender.call(tui);
 
