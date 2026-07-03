@@ -554,6 +554,15 @@ function updateRenderState(
   tui.previousHeight = height;
 }
 
+function collectInlineImageSpanSets(
+  previousLines: readonly string[],
+  screenLines: readonly string[],
+): { previousSpans: LineSpan[]; nextSpans: LineSpan[]; bothEmpty: boolean } {
+  const previousSpans = collectInlineImageSpans(previousLines);
+  const nextSpans = collectInlineImageSpans(screenLines);
+  return { previousSpans, nextSpans, bothEmpty: previousSpans.length === 0 && nextSpans.length === 0 };
+}
+
 function expandRowsToRenderForInlineImageSpans(
   previousLines: readonly string[],
   screenLines: readonly string[],
@@ -563,9 +572,8 @@ function expandRowsToRenderForInlineImageSpans(
     return [];
   }
 
-  const previousSpans = collectInlineImageSpans(previousLines);
-  const nextSpans = collectInlineImageSpans(screenLines);
-  if (previousSpans.length === 0 && nextSpans.length === 0) {
+  const { previousSpans, nextSpans, bothEmpty } = collectInlineImageSpanSets(previousLines, screenLines);
+  if (bothEmpty) {
     return [...rowsToRender];
   }
 
@@ -685,9 +693,8 @@ function shouldForceFullClearForInlineImageSpans(
   previousLines: readonly string[],
   screenLines: readonly string[],
 ): boolean {
-  const previousSpans = collectInlineImageSpans(previousLines);
-  const nextSpans = collectInlineImageSpans(screenLines);
-  if (previousSpans.length === 0 && nextSpans.length === 0) {
+  const { previousSpans, nextSpans, bothEmpty } = collectInlineImageSpanSets(previousLines, screenLines);
+  if (bothEmpty) {
     return false;
   }
 

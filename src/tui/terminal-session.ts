@@ -1,5 +1,7 @@
 import { matchesKey, type TUI } from "@earendil-works/pi-tui";
 
+import { isRecord } from "../shared/index.js";
+
 export type StickyTerminalDiagnostic = (event: string, fields: Record<string, unknown>) => void;
 
 export interface StickyTerminalSessionOptions {
@@ -45,6 +47,37 @@ let activeTerminalModes: ActiveTerminalModes | undefined;
 function getTerminalWrite(tui: TUI): ((data: string) => void) | undefined {
   const write = tui.terminal?.write;
   return typeof write === "function" ? write.bind(tui.terminal) : undefined;
+}
+
+/** Resolve the terminal write function, emitting a skipped diagnostic when unavailable. */
+function requireTerminalWrite(
+  tui: TUI,
+  diagnostic: StickyTerminalDiagnostic | undefined,
+): ((data: string) => void) | undefined {
+  const write = getTerminalWrite(tui);
+  if (!write) {
+    diagnostic?.("terminal_modes_skipped", { reason: "missing-terminal-write" });
+  }
+  return write;
+}
+
+/** Apply the effective terminal modes, emit the activation/update diagnostic, and request a render. */
+function applyTerminalModes(
+  tui: TUI,
+  event: string,
+  diagnostic: StickyTerminalDiagnostic | undefined,
+  modes: Omit<ActiveTerminalModes, "tui">,
+): void {
+  activeTerminalModes = {
+    tui,
+    ...modes,
+  };
+  diagnostic?.(event, {
+    alternateScreen: modes.alternateScreen,
+    alternateScroll: modes.alternateScroll,
+    mouseScroll: modes.mouseScroll,
+  });
+  tui.requestRender(true);
 }
 
 function getEffectiveTerminalModes(options: StickyTerminalSessionOptions): Omit<ActiveTerminalModes, "tui"> {
@@ -121,9 +154,8 @@ export function activateStickyTerminalSession(tui: TUI, options: StickyTerminalS
   const effectiveModes = getEffectiveTerminalModes(options);
   const activeModes = activeTerminalModes;
   if (activeModes?.tui === tui && activeModes.alternateScreen && effectiveModes.alternateScreen) {
-    const write = getTerminalWrite(tui);
+    const write = requireTerminalWrite(tui, options.diagnostic);
     if (!write) {
-      options.diagnostic?.("terminal_modes_skipped", { reason: "missing-terminal-write" });
       return;
     }
 
@@ -132,24 +164,14 @@ export function activateStickyTerminalSession(tui: TUI, options: StickyTerminalS
       write(sequence);
     }
 
-    activeTerminalModes = {
-      tui,
-      ...effectiveModes,
-    };
-    options.diagnostic?.("terminal_modes_updated", {
-      alternateScreen: effectiveModes.alternateScreen,
-      alternateScroll: effectiveModes.alternateScroll,
-      mouseScroll: effectiveModes.mouseScroll,
-    });
-    tui.requestRender(true);
+    applyTerminalModes(tui, "terminal_modes_updated", options.diagnostic, effectiveModes);
     return;
   }
 
   deactivateStickyTerminalSession();
 
-  const write = getTerminalWrite(tui);
+  const write = requireTerminalWrite(tui, options.diagnostic);
   if (!write) {
-    options.diagnostic?.("terminal_modes_skipped", { reason: "missing-terminal-write" });
     return;
   }
 
@@ -171,16 +193,7 @@ export function activateStickyTerminalSession(tui: TUI, options: StickyTerminalS
   }
 
   installStopPatch(tui);
-  activeTerminalModes = {
-    tui,
-    ...effectiveModes,
-  };
-  options.diagnostic?.("terminal_modes_activated", {
-    alternateScreen: effectiveModes.alternateScreen,
-    alternateScroll: effectiveModes.alternateScroll,
-    mouseScroll: effectiveModes.mouseScroll,
-  });
-  tui.requestRender(true);
+  applyTerminalModes(tui, "terminal_modes_activated", options.diagnostic, effectiveModes);
 }
 
 export function deactivateStickyTerminalSession(diagnostic?: StickyTerminalDiagnostic): void {
@@ -218,10 +231,6 @@ export function deactivateStickyTerminalSession(diagnostic?: StickyTerminalDiagn
 
 export function getActiveStickyTerminalTui(): TUI | undefined {
   return activeTerminalModes?.tui;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 export function hasVisibleOverlay(tui: unknown): boolean {

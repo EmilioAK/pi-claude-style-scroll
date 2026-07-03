@@ -17,7 +17,7 @@ interface DebugLoggerCreateOptions {
 function safeJsonStringify(value: unknown): string {
   const seen = new WeakSet<object>();
 
-  return JSON.stringify(value, (key, currentValue) => {
+  return JSON.stringify(value, (key, currentValue: unknown) => {
     if (SECRET_KEYS.test(key)) {
       return "[REDACTED]";
     }
