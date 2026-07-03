@@ -1,11 +1,18 @@
+<div align="center">
+
 # pi-sticky-input
 
-[![npm version](https://img.shields.io/npm/v/pi-sticky-input?style=flat-square)](https://www.npmjs.com/package/pi-sticky-input) [![License](https://img.shields.io/github/license/MasuRii/pi-sticky-input?style=flat-square)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/pi-sticky-input?style=for-the-badge)](https://www.npmjs.com/package/pi-sticky-input)
+[![License](https://img.shields.io/github/license/MasuRii/pi-sticky-input?style=for-the-badge)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blue?style=for-the-badge)]()
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y01PSSVR)
 
 `pi-sticky-input` is a Pi extension that keeps chat input, status widgets, editor content, and footer controls anchored while session history updates in a bounded viewport above them.
-
 - **npm**: https://www.npmjs.com/package/pi-sticky-input
 - **GitHub**: https://github.com/MasuRii/pi-sticky-input
+
+</div>
 
 ## Capabilities
 
@@ -60,16 +67,19 @@ Keyboard history scrolling is enabled by default. Mouse-wheel capture is disable
 
 ## Configuration
 
-Runtime configuration is stored at the extension root:
+Runtime configuration is loaded from these locations in order. Later files override earlier files, so project config wins over user/global config.
 
-```text
-~/.pi/agent/extensions/pi-sticky-input/config.json
-```
+| Scope | Path |
+|-------|------|
+| Extension install root | `<extension-root>/config.json` |
+| Global user override | `~/.pi/agent/extensions/pi-sticky-input/config.json` |
+| Project override | `<project>/.pi/extensions/pi-sticky-input/config.json` |
 
-A starter template is included at `config/config.example.json`. Copy it to `config.json` for local customization, or let the extension use production defaults when no local config exists.
+A starter template is included at `config/config.example.json`. Copy it to the global or project override path for customization, or let the extension use production defaults when no local config exists.
 
 ```bash
-cp config/config.example.json config.json
+mkdir -p .pi/extensions/pi-sticky-input
+cp config/config.example.json .pi/extensions/pi-sticky-input/config.json
 ```
 
 The published package intentionally excludes local runtime state: `config.json` and `debug/` stay local to each installation.
@@ -136,6 +146,13 @@ npm run build
 npm run package:dry-run
 ```
 
+## Related Pi Extensions
+
+- [pi-tool-display](https://github.com/MasuRii/pi-tool-display) — Compact tool rendering and diff visualization
+- [pi-startup-redraw-fix](https://github.com/MasuRii/pi-startup-redraw-fix) — Fix terminal redraw glitches on startup
+- [pi-hide-messages](https://github.com/MasuRii/pi-hide-messages) — Hide older chat messages without losing context
+- [pi-session-dashboard](https://github.com/MasuRii/pi-session-dashboard) — Localhost browser dashboard of session metrics
+
 ## License
 
-MIT © MasuRii
+[MIT](LICENSE) © MasuRii
