@@ -2,7 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
+
+import { isRecord } from "../shared/index.js";
+
 const CONFIG_FILE_NAME = "config.json";
+const EXTENSION_CONFIG_DIR_NAME = "pi-sticky-input";
 const EXTENSION_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export interface StickyInputConfig {
@@ -22,6 +27,11 @@ export interface StickyInputConfig {
 export interface StickyInputConfigLoadResult {
   config: StickyInputConfig;
   warnings: string[];
+}
+
+export interface StickyInputConfigLoadOptions {
+  cwd?: string;
+  paths?: string[];
 }
 
 export const DEFAULT_STICKY_INPUT_CONFIG: StickyInputConfig = {
@@ -46,8 +56,35 @@ export function getConfigPath(): string {
   return join(getExtensionRoot(), CONFIG_FILE_NAME);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+export function getGlobalConfigPath(agentDir = getAgentDir()): string {
+  return join(resolve(agentDir), "extensions", EXTENSION_CONFIG_DIR_NAME, CONFIG_FILE_NAME);
+}
+
+export function getProjectConfigPath(cwd: string): string {
+  return join(resolve(cwd), CONFIG_DIR_NAME, "extensions", EXTENSION_CONFIG_DIR_NAME, CONFIG_FILE_NAME);
+}
+
+function addUniquePath(paths: string[], seen: Set<string>, path: string): void {
+  const resolvedPath = resolve(path);
+  if (seen.has(resolvedPath)) {
+    return;
+  }
+
+  seen.add(resolvedPath);
+  paths.push(path);
+}
+
+export function getConfigPaths(options: { cwd?: string; agentDir?: string } = {}): string[] {
+  const paths: string[] = [];
+  const seen = new Set<string>();
+
+  addUniquePath(paths, seen, getConfigPath());
+  addUniquePath(paths, seen, getGlobalConfigPath(options.agentDir));
+  if (options.cwd) {
+    addUniquePath(paths, seen, getProjectConfigPath(options.cwd));
+  }
+
+  return paths;
 }
 
 function cloneDefaultConfig(): StickyInputConfig {
@@ -99,46 +136,46 @@ function parseBoundedInteger(
   return value;
 }
 
-function normalizeConfig(rawConfig: unknown): StickyInputConfigLoadResult {
+function normalizeConfig(rawConfig: unknown, baseConfig: StickyInputConfig = DEFAULT_STICKY_INPUT_CONFIG): StickyInputConfigLoadResult {
   const warnings: string[] = [];
-  const defaults = DEFAULT_STICKY_INPUT_CONFIG;
+  const base = { ...baseConfig };
 
   if (!isRecord(rawConfig)) {
-    warnings.push("Invalid pi-sticky-input config root: expected a JSON object. Using defaults.");
-    return { config: cloneDefaultConfig(), warnings };
+    warnings.push("Invalid pi-sticky-input config root: expected a JSON object. Keeping previously loaded values.");
+    return { config: base, warnings };
   }
 
   return {
     config: {
-      debug: parseBoolean(rawConfig.debug, defaults.debug, "debug", warnings),
-      enabled: parseBoolean(rawConfig.enabled, defaults.enabled, "enabled", warnings),
+      debug: parseBoolean(rawConfig.debug, base.debug, "debug", warnings),
+      enabled: parseBoolean(rawConfig.enabled, base.enabled, "enabled", warnings),
       splitFooterRenderer: parseBoolean(
         rawConfig.splitFooterRenderer,
-        defaults.splitFooterRenderer,
+        base.splitFooterRenderer,
         "splitFooterRenderer",
         warnings,
       ),
       alternateScreen: parseBoolean(
         rawConfig.alternateScreen,
-        defaults.alternateScreen,
+        base.alternateScreen,
         "alternateScreen",
         warnings,
       ),
       alternateScroll: parseBoolean(
         rawConfig.alternateScroll,
-        defaults.alternateScroll,
+        base.alternateScroll,
         "alternateScroll",
         warnings,
       ),
       mouseScroll: parseBoolean(
         rawConfig.mouseScroll,
-        defaults.mouseScroll,
+        base.mouseScroll,
         "mouseScroll",
         warnings,
       ),
       mouseWheelScrollRows: parseBoundedInteger(
         rawConfig.mouseWheelScrollRows,
-        defaults.mouseWheelScrollRows,
+        base.mouseWheelScrollRows,
         "mouseWheelScrollRows",
         1,
         50,
@@ -146,13 +183,13 @@ function normalizeConfig(rawConfig: unknown): StickyInputConfigLoadResult {
       ),
       keyboardScroll: parseBoolean(
         rawConfig.keyboardScroll,
-        defaults.keyboardScroll,
+        base.keyboardScroll,
         "keyboardScroll",
         warnings,
       ),
       keyboardScrollRows: parseBoundedInteger(
         rawConfig.keyboardScrollRows,
-        defaults.keyboardScrollRows,
+        base.keyboardScrollRows,
         "keyboardScrollRows",
         1,
         200,
@@ -160,7 +197,7 @@ function normalizeConfig(rawConfig: unknown): StickyInputConfigLoadResult {
       ),
       minimumHistoryRows: parseBoundedInteger(
         rawConfig.minimumHistoryRows,
-        defaults.minimumHistoryRows,
+        base.minimumHistoryRows,
         "minimumHistoryRows",
         1,
         20,
@@ -168,7 +205,7 @@ function normalizeConfig(rawConfig: unknown): StickyInputConfigLoadResult {
       ),
       historyViewportLineLimit: parseBoundedInteger(
         rawConfig.historyViewportLineLimit,
-        defaults.historyViewportLineLimit,
+        base.historyViewportLineLimit,
         "historyViewportLineLimit",
         20,
         5000,
@@ -179,19 +216,50 @@ function normalizeConfig(rawConfig: unknown): StickyInputConfigLoadResult {
   };
 }
 
-export function loadStickyInputConfig(path = getConfigPath()): StickyInputConfigLoadResult {
+function prefixWarnings(path: string, warnings: string[]): string[] {
+  return warnings.map((warning) => `${warning} Source: '${path}'.`);
+}
+
+function loadStickyInputConfigFile(path: string, baseConfig: StickyInputConfig): StickyInputConfigLoadResult {
   if (!existsSync(path)) {
-    return { config: cloneDefaultConfig(), warnings: [] };
+    return { config: { ...baseConfig }, warnings: [] };
   }
 
   try {
     const rawConfig = JSON.parse(readFileSync(path, "utf-8")) as unknown;
-    return normalizeConfig(rawConfig);
+    const result = normalizeConfig(rawConfig, baseConfig);
+    return {
+      config: result.config,
+      warnings: prefixWarnings(path, result.warnings),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
-      config: cloneDefaultConfig(),
-      warnings: [`Failed to read pi-sticky-input config at '${path}': ${message}. Using defaults.`],
+      config: { ...baseConfig },
+      warnings: [`Failed to read pi-sticky-input config at '${path}': ${message}. Keeping previously loaded values.`],
     };
   }
+}
+
+function getLoadOptions(optionsOrPath: string | StickyInputConfigLoadOptions): StickyInputConfigLoadOptions {
+  if (typeof optionsOrPath === "string") {
+    return { paths: [optionsOrPath] };
+  }
+
+  return optionsOrPath;
+}
+
+export function loadStickyInputConfig(optionsOrPath: string | StickyInputConfigLoadOptions = {}): StickyInputConfigLoadResult {
+  const options = getLoadOptions(optionsOrPath);
+  const paths = options.paths ?? getConfigPaths({ cwd: options.cwd });
+  let config = cloneDefaultConfig();
+  const warnings: string[] = [];
+
+  for (const path of paths) {
+    const result = loadStickyInputConfigFile(path, config);
+    config = result.config;
+    warnings.push(...result.warnings);
+  }
+
+  return { config, warnings };
 }
