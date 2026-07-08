@@ -123,3 +123,29 @@ test("non-editor focused components bypass sticky terminal input handling", () =
   assert.equal(terminalSession.shouldHandleStickyTerminalInput({ focusedComponent: selectorFocus }), false);
   assert.equal(terminalSession.shouldHandleStickyTerminalInput({ hasOverlay: () => true, focusedComponent: editorFocus }), false);
 });
+
+test("editor autocomplete state can be detected while focused", () => {
+  const createEditorFocus = (overrides = {}) => ({
+    constructor: { name: "Editor" },
+    getText() {},
+    setText() {},
+    handleInput() {},
+    onSubmit: undefined,
+    ...overrides,
+  });
+
+  assert.equal(
+    terminalSession.isEditorAutocompleteOpen({ focusedComponent: createEditorFocus({ isShowingAutocomplete: () => true }) }),
+    true,
+  );
+  assert.equal(
+    terminalSession.isEditorAutocompleteOpen({ focusedComponent: createEditorFocus({ isShowingAutocomplete: () => false }) }),
+    false,
+  );
+  assert.equal(
+    terminalSession.isEditorAutocompleteOpen({ focusedComponent: createEditorFocus({ autocompleteState: "regular" }) }),
+    true,
+  );
+  assert.equal(terminalSession.isEditorAutocompleteOpen({ focusedComponent: { handleInput() {} } }), false);
+  assert.equal(terminalSession.isEditorAutocompleteOpen(undefined), false);
+});

@@ -280,6 +280,24 @@ export function shouldHandleStickyTerminalInput(tui: unknown): boolean {
   return isEditorLikeFocus(tui.focusedComponent);
 }
 
+export function isEditorAutocompleteOpen(tui: unknown): boolean {
+  if (!isRecord(tui) || !isRecord(tui.focusedComponent) || !isEditorLikeFocus(tui.focusedComponent)) {
+    return false;
+  }
+
+  const component = tui.focusedComponent;
+  const isShowingAutocomplete = component.isShowingAutocomplete;
+  if (typeof isShowingAutocomplete === "function") {
+    try {
+      return isShowingAutocomplete.call(component) === true;
+    } catch {
+      // Fall back to the known internal editor state fields below.
+    }
+  }
+
+  return component.autocompleteState !== undefined && component.autocompleteState !== null;
+}
+
 function getMouseWheelDirection(rawButton: number): MouseWheelDirection | undefined {
   const button = rawButton & ~MOUSE_MODIFIER_MASK;
   if (button === WHEEL_UP_BUTTON) {

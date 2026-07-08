@@ -242,10 +242,14 @@ function handleStickyTerminalInput(
     // text so the message viewport can be scrolled while composing. Trade-off:
     // real Up/Down arrow keys are indistinguishable from wheel events at this
     // layer and will also scroll.
-    const direction = terminalSession.parseAlternateScrollInput(data, {
-      allowCursorKeys: config.scrollWhileTyping || editorTextEmpty,
-    });
-    if (direction) {
+    const direction = terminalSession.parseAlternateScrollInput(data, { allowCursorKeys: true });
+    if (direction && terminalSession.isEditorAutocompleteOpen(tui)) {
+      // Let the editor's slash/autocomplete menu own Up/Down while it is open.
+      // In alternate-scroll mode, wheel events also look like Up/Down here.
+      return undefined;
+    }
+
+    if (direction && (config.scrollWhileTyping || editorTextEmpty)) {
       scrollAndLogWheelEvent(runtime, splitFooterRenderer, tui, direction, config.mouseWheelScrollRows, "terminal_alternate_scroll");
       return { consume: true };
     }
