@@ -21,6 +21,12 @@ This is a fork of [`MasuRii/pi-sticky-input`](https://github.com/MasuRii/pi-stic
 
 > Not affiliated with Anthropic or Claude Code. "Claude Code-style" describes the pinned input + scroll-while-typing behavior only.
 
+## Demo
+
+![Demo: Pi message history scrolls while the input stays pinned](https://raw.githubusercontent.com/EmilioAK/pi-claude-style-scroll/main/assets/demo.gif)
+
+[Watch the MP4 demo](https://raw.githubusercontent.com/EmilioAK/pi-claude-style-scroll/main/assets/demo.mp4).
+
 ## Why this exists
 
 Pi's normal terminal scrollback can fight a sticky input layout: when you wheel-scroll, the outer terminal or multiplexer may scroll old screen history instead of Pi's message list. `pi-claude-style-scroll` keeps the input visible and routes wheel scrolling to Pi's internal history viewport, so you can read earlier assistant output while drafting your next prompt.
@@ -36,7 +42,7 @@ pi install git:github.com/EmilioAK/pi-claude-style-scroll
 For a pinned install, use a tag or commit:
 
 ```bash
-pi install git:github.com/EmilioAK/pi-claude-style-scroll@v0.3.0
+pi install git:github.com/EmilioAK/pi-claude-style-scroll@v0.3.1
 ```
 
 ### npm
