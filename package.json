@@ -1,7 +1,7 @@
 {
-  "name": "pi-sticky-input",
-  "version": "0.2.0",
-  "description": "Pi extension that keeps chat input bounded and anchored while session history updates.",
+  "name": "pi-claude-style-scroll",
+  "version": "0.3.0",
+  "description": "Pi extension for Claude Code-style scrolling: pinned input with message-history scroll while typing.",
   "type": "module",
   "main": "./index.ts",
   "exports": {
@@ -31,22 +31,26 @@
     "pi-coding-agent",
     "pi-tui",
     "coding-agent",
-    "sticky-input",
     "chat-input",
     "terminal",
     "alternate-screen",
-    "footer"
+    "footer",
+    "claude-style-scroll",
+    "claude-code-style",
+    "scroll-while-typing",
+    "pinned-composer",
+    "sticky-scroll"
   ],
   "author": "MasuRii",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MasuRii/pi-sticky-input.git"
+    "url": "git+https://github.com/EmilioAK/pi-claude-style-scroll.git"
   },
   "bugs": {
-    "url": "https://github.com/MasuRii/pi-sticky-input/issues"
+    "url": "https://github.com/EmilioAK/pi-claude-style-scroll/issues"
   },
-  "homepage": "https://github.com/MasuRii/pi-sticky-input#readme",
+  "homepage": "https://github.com/EmilioAK/pi-claude-style-scroll#readme",
   "engines": {
     "node": ">=20"
   },

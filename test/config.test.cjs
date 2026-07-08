@@ -26,7 +26,7 @@ test("project config path uses the public CONFIG_DIR_NAME export", () => {
 
   assert.equal(
     config.getProjectConfigPath(path.join("workspace", "project")),
-    path.join(path.resolve("workspace", "project"), ".custom-pi-test", "extensions", "pi-sticky-input", "config.json"),
+    path.join(path.resolve("workspace", "project"), ".custom-pi-test", "extensions", "pi-claude-style-scroll", "config.json"),
   );
 });
 
@@ -35,7 +35,7 @@ test("project config path keeps the default .pi directory with the bundled agent
 
   assert.equal(
     config.getProjectConfigPath(path.join("workspace", "project")),
-    path.join(path.resolve("workspace", "project"), ".pi", "extensions", "pi-sticky-input", "config.json"),
+    path.join(path.resolve("workspace", "project"), ".pi", "extensions", "pi-claude-style-scroll", "config.json"),
   );
 });
 
@@ -59,7 +59,7 @@ function realModule() {
 }
 
 function makeTempDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "pi-sticky-input-config-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "pi-claude-style-scroll-config-"));
 }
 
 function removeDir(dir) {
@@ -92,11 +92,12 @@ function withTempDir(fn) {
   }
 }
 
-/** Assert getConfigPaths returned exactly the bundled + global paths (no project path). */
+/** Assert getConfigPaths returned bundled + legacy global + global paths (no project path). */
 function assertBundledAndGlobalPaths(mod, paths, agentDir) {
-  assert.equal(paths.length, 2);
+  assert.equal(paths.length, 3);
   assert.equal(paths[0], mod.getConfigPath());
-  assert.equal(paths[1], mod.getGlobalConfigPath(agentDir));
+  assert.equal(paths[1], mod.getLegacyGlobalConfigPath(agentDir));
+  assert.equal(paths[2], mod.getGlobalConfigPath(agentDir));
 }
 
 // --- Path resolution ---
@@ -105,7 +106,7 @@ test("getGlobalConfigPath resolves under the agent dir extensions area", () => {
   const mod = realModule();
   assert.equal(
     mod.getGlobalConfigPath(path.join("agent", "root")),
-    path.join(path.resolve("agent", "root"), "extensions", "pi-sticky-input", "config.json"),
+    path.join(path.resolve("agent", "root"), "extensions", "pi-claude-style-scroll", "config.json"),
   );
 });
 
@@ -113,7 +114,7 @@ test("getGlobalConfigPath default agent dir ends with the extensions config path
   const mod = realModule();
   const result = mod.getGlobalConfigPath();
   assert.ok(
-    result.endsWith(path.join("extensions", "pi-sticky-input", "config.json")),
+    result.endsWith(path.join("extensions", "pi-claude-style-scroll", "config.json")),
     `unexpected global config path: ${result}`,
   );
 });
@@ -123,10 +124,12 @@ test("getConfigPaths returns bundled, global, project in layering order", () => 
   withTempDir((cwd) => {
     withTempDir((agentDir) => {
       const paths = mod.getConfigPaths({ cwd, agentDir });
-      assert.equal(paths.length, 3);
+      assert.equal(paths.length, 5);
       assert.equal(paths[0], mod.getConfigPath());
-      assert.equal(paths[1], mod.getGlobalConfigPath(agentDir));
-      assert.equal(paths[2], mod.getProjectConfigPath(cwd));
+      assert.equal(paths[1], mod.getLegacyGlobalConfigPath(agentDir));
+      assert.equal(paths[2], mod.getGlobalConfigPath(agentDir));
+      assert.equal(paths[3], mod.getLegacyProjectConfigPath(cwd));
+      assert.equal(paths[4], mod.getProjectConfigPath(cwd));
     });
   });
 });

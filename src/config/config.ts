@@ -7,7 +7,8 @@ import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { isRecord } from "../shared/index.js";
 
 const CONFIG_FILE_NAME = "config.json";
-const EXTENSION_CONFIG_DIR_NAME = "pi-sticky-input";
+const EXTENSION_CONFIG_DIR_NAME = "pi-claude-style-scroll";
+const LEGACY_EXTENSION_CONFIG_DIR_NAME = "pi-sticky-input";
 const EXTENSION_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export interface StickyInputConfig {
@@ -16,6 +17,7 @@ export interface StickyInputConfig {
   splitFooterRenderer: boolean;
   alternateScreen: boolean;
   alternateScroll: boolean;
+  scrollWhileTyping: boolean;
   mouseScroll: boolean;
   mouseWheelScrollRows: number;
   keyboardScroll: boolean;
@@ -39,7 +41,8 @@ export const DEFAULT_STICKY_INPUT_CONFIG: StickyInputConfig = {
   enabled: true,
   splitFooterRenderer: true,
   alternateScreen: true,
-  alternateScroll: false,
+  alternateScroll: true,
+  scrollWhileTyping: true,
   mouseScroll: false,
   mouseWheelScrollRows: 3,
   keyboardScroll: true,
@@ -60,8 +63,16 @@ export function getGlobalConfigPath(agentDir = getAgentDir()): string {
   return join(resolve(agentDir), "extensions", EXTENSION_CONFIG_DIR_NAME, CONFIG_FILE_NAME);
 }
 
+export function getLegacyGlobalConfigPath(agentDir = getAgentDir()): string {
+  return join(resolve(agentDir), "extensions", LEGACY_EXTENSION_CONFIG_DIR_NAME, CONFIG_FILE_NAME);
+}
+
 export function getProjectConfigPath(cwd: string): string {
   return join(resolve(cwd), CONFIG_DIR_NAME, "extensions", EXTENSION_CONFIG_DIR_NAME, CONFIG_FILE_NAME);
+}
+
+export function getLegacyProjectConfigPath(cwd: string): string {
+  return join(resolve(cwd), CONFIG_DIR_NAME, "extensions", LEGACY_EXTENSION_CONFIG_DIR_NAME, CONFIG_FILE_NAME);
 }
 
 function addUniquePath(paths: string[], seen: Set<string>, path: string): void {
@@ -79,8 +90,10 @@ export function getConfigPaths(options: { cwd?: string; agentDir?: string } = {}
   const seen = new Set<string>();
 
   addUniquePath(paths, seen, getConfigPath());
+  addUniquePath(paths, seen, getLegacyGlobalConfigPath(options.agentDir));
   addUniquePath(paths, seen, getGlobalConfigPath(options.agentDir));
   if (options.cwd) {
+    addUniquePath(paths, seen, getLegacyProjectConfigPath(options.cwd));
     addUniquePath(paths, seen, getProjectConfigPath(options.cwd));
   }
 
@@ -107,7 +120,7 @@ function parseBoolean(
   }
 
   if (typeof value !== "boolean") {
-    warnings.push(`Invalid pi-sticky-input config setting '${field}': expected a boolean, got ${formatValue(value)}.`);
+    warnings.push(`Invalid pi-claude-style-scroll config setting '${field}': expected a boolean, got ${formatValue(value)}.`);
     return fallback;
   }
 
@@ -128,7 +141,7 @@ function parseBoundedInteger(
 
   if (!Number.isInteger(value) || typeof value !== "number" || value < min || value > max) {
     warnings.push(
-      `Invalid pi-sticky-input config setting '${field}': expected an integer between ${min} and ${max}, got ${formatValue(value)}.`,
+      `Invalid pi-claude-style-scroll config setting '${field}': expected an integer between ${min} and ${max}, got ${formatValue(value)}.`,
     );
     return fallback;
   }
@@ -141,7 +154,7 @@ function normalizeConfig(rawConfig: unknown, baseConfig: StickyInputConfig = DEF
   const base = { ...baseConfig };
 
   if (!isRecord(rawConfig)) {
-    warnings.push("Invalid pi-sticky-input config root: expected a JSON object. Keeping previously loaded values.");
+    warnings.push("Invalid pi-claude-style-scroll config root: expected a JSON object. Keeping previously loaded values.");
     return { config: base, warnings };
   }
 
@@ -165,6 +178,12 @@ function normalizeConfig(rawConfig: unknown, baseConfig: StickyInputConfig = DEF
         rawConfig.alternateScroll,
         base.alternateScroll,
         "alternateScroll",
+        warnings,
+      ),
+      scrollWhileTyping: parseBoolean(
+        rawConfig.scrollWhileTyping,
+        base.scrollWhileTyping,
+        "scrollWhileTyping",
         warnings,
       ),
       mouseScroll: parseBoolean(
@@ -236,7 +255,7 @@ function loadStickyInputConfigFile(path: string, baseConfig: StickyInputConfig):
     const message = error instanceof Error ? error.message : String(error);
     return {
       config: { ...baseConfig },
-      warnings: [`Failed to read pi-sticky-input config at '${path}': ${message}. Keeping previously loaded values.`],
+      warnings: [`Failed to read pi-claude-style-scroll config at '${path}': ${message}. Keeping previously loaded values.`],
     };
   }
 }

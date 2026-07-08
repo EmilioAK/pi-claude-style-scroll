@@ -13,7 +13,7 @@ type DebugLogger = import("./logging/debug-logger.js").DebugLogger;
 type StickySplitFooterPatchStatus = import("./tui/split-footer-renderer.js").StickySplitFooterPatchStatus;
 type MouseWheelDirection = import("./tui/terminal-session.js").MouseWheelDirection;
 
-const EXTENSION_ID = "pi-sticky-input";
+const EXTENSION_ID = "pi-claude-style-scroll";
 const RUNTIME_PATCH_WIDGET_KEY = `${EXTENSION_ID}:runtime-renderer-hook`;
 const DEFAULT_PATCH_STATUS: StickySplitFooterPatchStatus = {
   installed: false,
@@ -137,6 +137,7 @@ function scrollConfigFields(config: StickyInputConfig): Record<string, unknown> 
     mouseWheelScrollRows: config.mouseWheelScrollRows,
     keyboardScroll: config.keyboardScroll,
     keyboardScrollRows: config.keyboardScrollRows,
+    scrollWhileTyping: config.scrollWhileTyping,
   };
 }
 
@@ -215,10 +216,13 @@ function handleStickyTerminalInput(
 
   if (config.alternateScroll) {
     // Alternate-scroll wheel events arrive as cursor-up/cursor-down sequences.
-    // Handle them even while the prompt has text so the message viewport can be
-    // scrolled while composing. Trade-off: real Up/Down arrow keys are
-    // indistinguishable from wheel events at this layer and will also scroll.
-    const direction = terminalSession.parseAlternateScrollInput(data, { allowCursorKeys: true });
+    // When scrollWhileTyping is enabled, handle them even while the prompt has
+    // text so the message viewport can be scrolled while composing. Trade-off:
+    // real Up/Down arrow keys are indistinguishable from wheel events at this
+    // layer and will also scroll.
+    const direction = terminalSession.parseAlternateScrollInput(data, {
+      allowCursorKeys: config.scrollWhileTyping || editorTextEmpty,
+    });
     if (direction) {
       scrollAndLogWheelEvent(runtime, splitFooterRenderer, tui, direction, config.mouseWheelScrollRows, "terminal_alternate_scroll");
       return { consume: true };
@@ -362,9 +366,7 @@ export default function stickyInputExtension(pi: ExtensionAPI): void {
     return refreshRuntimeState(cwd);
   }
 
-  pi.registerCommand("sticky-input", {
-    description: "Toggle pi-sticky-input mouse-wheel chat scrolling.",
-    handler: async (args, ctx) => {
+  async function handleScrollCommand(args: string, ctx: ExtensionContext): Promise<void> {
       const command = await loadMouseScrollCommandModule();
       const action = command.parseStickyInputCommandArgs(args);
       if (action.type === "error") {
@@ -391,7 +393,16 @@ export default function stickyInputExtension(pi: ExtensionAPI): void {
         alternateScroll: currentRuntime.configResult.config.alternateScroll,
       });
       ctx.ui.notify(command.getStickyMouseScrollStatusMessage(enabled), "info");
-    },
+  }
+
+  pi.registerCommand("claude-style-scroll", {
+    description: "Toggle pi-claude-style-scroll mouse-wheel chat scrolling.",
+    handler: handleScrollCommand,
+  });
+
+  pi.registerCommand("sticky-input", {
+    description: "Compatibility alias for /claude-style-scroll.",
+    handler: handleScrollCommand,
   });
 
   function clearTerminalInputListener(): void {

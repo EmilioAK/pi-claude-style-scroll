@@ -9,7 +9,7 @@ const jiti = createJiti(path.join(__dirname, "debug-logger.test.cjs"), { interop
 const { DebugLogger } = jiti("../src/logging/debug-logger.ts");
 
 async function withTempRoot(run) {
-  const root = mkdtempSync(path.join(tmpdir(), "pi-sticky-input-debug-"));
+  const root = mkdtempSync(path.join(tmpdir(), "pi-claude-style-scroll-debug-"));
   try {
     await run(root);
   } finally {
@@ -40,7 +40,7 @@ test("enabled debug logger writes on flush and redacts secret fields", async () 
     await logger.flush();
 
     const logContent = readFileSync(path.join(root, "debug", "debug.log"), "utf-8");
-    assert.match(logContent, /"extension":"pi-sticky-input"/);
+    assert.match(logContent, /"extension":"pi-claude-style-scroll"/);
     assert.match(logContent, /"event":"render"/);
     assert.match(logContent, /"apiKey":"\[REDACTED\]"/);
     assert.match(logContent, /"authorization":"\[REDACTED\]"/);

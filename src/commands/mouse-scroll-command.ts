@@ -34,7 +34,7 @@ export function parseStickyInputCommandArgs(args: string): StickyInputCommandAct
   if (normalizedTokens.length !== 1) {
     return {
       type: "error",
-      message: "Usage: /sticky-input [on|off|toggle|status] or /sticky-input mouse [on|off|status].",
+      message: "Usage: /claude-style-scroll [on|off|toggle|status] or /claude-style-scroll mouse [on|off|status].",
     };
   }
 
@@ -61,7 +61,7 @@ export function parseStickyInputCommandArgs(args: string): StickyInputCommandAct
 
   return {
     type: "error",
-    message: `Unknown pi-sticky-input command argument '${token}'. Use /sticky-input help.`,
+    message: `Unknown pi-claude-style-scroll command argument '${token}'. Use /claude-style-scroll help.`,
   };
 }
 
@@ -72,16 +72,16 @@ export function applyStickyMouseScrollMode(config: StickyMouseScrollConfig, enab
 
 export function getStickyMouseScrollStatusMessage(enabled: boolean): string {
   return enabled
-    ? "pi-sticky-input mouse-wheel chat scrolling is ON. Native terminal selection/link clicks are captured while this is on. Run /sticky-input off to restore native terminal mouse behavior."
-    : "pi-sticky-input mouse-wheel chat scrolling is OFF. Native terminal selection/link clicks are preserved. Run /sticky-input on to enable mouse-wheel chat scrolling.";
+    ? "pi-claude-style-scroll SGR mouse-wheel capture is ON. Native terminal selection/link clicks are captured while this is on. Run /claude-style-scroll off to restore native terminal mouse behavior."
+    : "pi-claude-style-scroll SGR mouse-wheel capture is OFF. Native terminal selection/link clicks are preserved. Claude-style alternate-scroll can still work when enabled in config.";
 }
 
 export function getStickyInputCommandHelp(): string {
   return [
-    "pi-sticky-input mouse mode command:",
-    "  /sticky-input          Toggle mouse-wheel chat scrolling",
-    "  /sticky-input on       Enable mouse-wheel chat scrolling",
-    "  /sticky-input off      Restore native terminal selection/link clicks",
-    "  /sticky-input status   Show current mode",
+    "pi-claude-style-scroll mouse mode command:",
+    "  /claude-style-scroll          Toggle mouse-wheel chat scrolling",
+    "  /claude-style-scroll on       Enable mouse-wheel chat scrolling",
+    "  /claude-style-scroll off      Restore native terminal selection/link clicks",
+    "  /claude-style-scroll status   Show current mode",
   ].join("\n");
 }

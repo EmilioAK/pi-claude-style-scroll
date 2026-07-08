@@ -25,7 +25,7 @@ function createRecordingTui(stop) {
 
 test("default terminal compatibility preserves native selection and links", () => {
   assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.mouseScroll, false);
-  assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.alternateScroll, false);
+  assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.alternateScroll, true);
 });
 
 test("alternate screen is restored after TUI stop, not before it", () => {

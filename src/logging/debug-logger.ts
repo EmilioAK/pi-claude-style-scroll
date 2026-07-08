@@ -5,7 +5,7 @@ import { getExtensionRoot, type StickyInputConfig } from "../config/config.js";
 
 const DEBUG_DIRECTORY_NAME = "debug";
 const DEBUG_LOG_FILE_NAME = "debug.log";
-const EXTENSION_ID = "pi-sticky-input";
+const EXTENSION_ID = "pi-claude-style-scroll";
 const SECRET_KEYS = /api[_-]?key|authorization|token|secret|password/i;
 
 type DebugFields = Record<string, unknown>;
@@ -71,7 +71,7 @@ export class DebugLogger {
       () => this.appendLine(line),
     );
     void this.writeQueue.catch(() => {
-      // Debug logging must never affect sticky-input behavior or terminal output.
+      // Debug logging must never affect pi-claude-style-scroll behavior or terminal output.
     });
     return undefined;
   }

@@ -1,106 +1,102 @@
 <div align="center">
 
-# pi-sticky-input
+# pi-claude-style-scroll
 
-[![npm version](https://img.shields.io/npm/v/pi-sticky-input?style=for-the-badge)](https://www.npmjs.com/package/pi-sticky-input)
-[![License](https://img.shields.io/github/license/MasuRii/pi-sticky-input?style=for-the-badge)](LICENSE)
+Claude Code-style scrolling for Pi: keep the input box pinned and scroll the message list, even while typing.
+
+[![License](https://img.shields.io/github/license/EmilioAK/pi-claude-style-scroll?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blue?style=for-the-badge)]()
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y01PSSVR)
-
-`pi-sticky-input` is a Pi extension that keeps chat input, status widgets, editor content, and footer controls anchored while session history updates in a bounded viewport above them.
-- **npm**: https://www.npmjs.com/package/pi-sticky-input
-- **GitHub**: https://github.com/MasuRii/pi-sticky-input
 
 </div>
 
-## Capabilities
+`pi-claude-style-scroll` is a Pi extension that makes Pi's chat UI feel more like Claude Code:
 
-- Keeps Pi's status, below-editor widgets, editor, and footer together in a sticky pane.
-- Bounds rendered history above the sticky pane so long sessions do not push input off screen.
-- Uses an alternate screen by default to avoid terminal scrollback fighting the sticky input layout.
-- Supports keyboard history scrolling with `PageUp`, `PageDown`, `Ctrl+PageUp`, `Ctrl+PageDown`, `Ctrl+Home`, and `Ctrl+End`.
-- Supports optional terminal mouse-wheel scrolling through alternate-scroll mode or SGR mouse capture.
-- Falls back to Pi's original renderer for overlays and structurally unknown layouts.
-- Keeps debug logging disabled by default and writes only to the extension-local `debug/` directory when enabled.
+- the composer/input box stays pinned at the bottom;
+- status widgets and footer controls stay with the composer;
+- the message history is bounded in a viewport above it;
+- the mouse wheel scrolls that message viewport, including while you are typing;
+- native terminal/Herdr drag-highlight copy stays usable because the default path avoids full SGR mouse capture.
 
-## Installation
+This is a fork of [`MasuRii/pi-sticky-input`](https://github.com/MasuRii/pi-sticky-input). The fork keeps the sticky split-footer renderer and changes the default scrolling UX around alternate-scroll so Pi can scroll while composing.
 
-### npm package
+> Not affiliated with Anthropic or Claude Code. "Claude Code-style" describes the scrolling UX only.
+
+## Why this exists
+
+Pi's normal terminal scrollback can fight a sticky input layout: when you wheel-scroll, the outer terminal or multiplexer may scroll old screen history instead of Pi's message list. `pi-claude-style-scroll` keeps the input visible and routes wheel scrolling to Pi's internal history viewport, so you can read earlier assistant output while drafting your next prompt.
+
+## Install
+
+### Git install
 
 ```bash
-pi install npm:pi-sticky-input
+pi install git:github.com/EmilioAK/pi-claude-style-scroll
 ```
 
-### Git repository
+For a pinned install, use a tag or commit:
 
 ```bash
-pi install git:github.com/MasuRii/pi-sticky-input
+pi install git:github.com/EmilioAK/pi-claude-style-scroll@v0.3.0
 ```
 
-### Local extension folder
+### npm
 
-Place this folder in one of Pi's extension discovery paths:
+Not published yet. Once published, the intended install will be:
 
-| Scope | Path |
-|-------|------|
-| Global default | `~/.pi/agent/extensions/pi-sticky-input` |
-| Project | `.pi/extensions/pi-sticky-input` |
-
-Pi discovers the extension through the root `index.ts` entry listed in `package.json`, which forwards to `src/index.ts`.
+```bash
+pi install npm:pi-claude-style-scroll
+```
 
 ## Usage
 
-The sticky renderer is enabled automatically when the extension loads and the TUI is available.
+The Claude-style sticky renderer is enabled automatically when the extension loads in Pi's TUI.
 
-The `/sticky-input` command controls optional mouse-wheel capture at runtime:
+The main command controls optional full mouse-wheel capture:
 
 ```text
-/sticky-input status
-/sticky-input mouse on
-/sticky-input mouse off
-/sticky-input mouse toggle
-/sticky-input help
+/claude-style-scroll status
+/claude-style-scroll mouse on
+/claude-style-scroll mouse off
+/claude-style-scroll mouse toggle
+/claude-style-scroll help
 ```
 
-Keyboard history scrolling is enabled by default. Mouse-wheel capture is disabled by default because full mouse tracking can block native terminal text selection and link clicks.
+`/sticky-input` is kept as a compatibility alias.
+
+Most users should leave full mouse capture **off**. The default alternate-scroll path is what preserves normal terminal text selection/link behavior.
+
+## Important tradeoff
+
+Terminals encode alternate-scroll mouse-wheel events as cursor-up/cursor-down key sequences. That is what lets this extension scroll the message viewport without enabling full mouse capture.
+
+Because those sequences are indistinguishable from physical Up/Down arrow keys at Pi's terminal-input layer, the default `scrollWhileTyping: true` mode means:
+
+- mouse wheel scrolls Pi messages while you type;
+- native drag-highlight/copy remains available;
+- physical Up/Down arrows may scroll the message viewport instead of moving inside the prompt.
+
+If you prefer normal Up/Down arrow editing, set `scrollWhileTyping` to `false`. Wheel scrolling will then only be treated as message scrolling when the input box is empty.
 
 ## Configuration
 
-Runtime configuration is loaded from these locations in order. Later files override earlier files, so project config wins over user/global config.
+Config is loaded from these locations in order. Later files override earlier files.
 
 | Scope | Path |
 |-------|------|
 | Extension install root | `<extension-root>/config.json` |
-| Global user override | `~/.pi/agent/extensions/pi-sticky-input/config.json` |
-| Project override | `<project>/.pi/extensions/pi-sticky-input/config.json` |
+| Legacy global override | `~/.pi/agent/extensions/pi-sticky-input/config.json` |
+| Global user override | `~/.pi/agent/extensions/pi-claude-style-scroll/config.json` |
+| Legacy project override | `<project>/.pi/extensions/pi-sticky-input/config.json` |
+| Project override | `<project>/.pi/extensions/pi-claude-style-scroll/config.json` |
 
-A starter template is included at `config/config.example.json`. Copy it to the global or project override path for customization, or let the extension use production defaults when no local config exists.
+A starter template is included at `config/config.example.json`.
 
 ```bash
-mkdir -p .pi/extensions/pi-sticky-input
-cp config/config.example.json .pi/extensions/pi-sticky-input/config.json
+mkdir -p ~/.pi/agent/extensions/pi-claude-style-scroll
+cp config/config.example.json ~/.pi/agent/extensions/pi-claude-style-scroll/config.json
 ```
 
-The published package intentionally excludes local runtime state: `config.json` and `debug/` stay local to each installation.
-
-### Configuration options
-
-| Key | Type | Default | Purpose |
-|-----|------|---------|---------|
-| `debug` | `boolean` | `false` | Enables file-only diagnostics under `debug/debug.log` |
-| `enabled` | `boolean` | `true` | Enables the extension |
-| `splitFooterRenderer` | `boolean` | `true` | Enables the sticky split-footer renderer patch |
-| `alternateScreen` | `boolean` | `true` | Uses an alternate terminal screen while the session is active |
-| `alternateScroll` | `boolean` | `false` | Lets compatible terminals translate wheel input into alternate-screen cursor sequences |
-| `mouseScroll` | `boolean` | `false` | Enables SGR mouse-wheel capture for terminals without alternate-scroll support |
-| `mouseWheelScrollRows` | `number` | `3` | Rows scrolled per wheel event |
-| `keyboardScroll` | `boolean` | `true` | Enables page-key and home/end history scrolling |
-| `keyboardScrollRows` | `number` | `10` | Rows scrolled per keyboard page event |
-| `minimumHistoryRows` | `number` | `3` | Minimum history viewport height before falling back on very small terminals |
-| `historyViewportLineLimit` | `number` | `200` | Maximum retained renderer-managed history lines before choosing the visible slice |
-
-### Example config
+### Default config
 
 ```json
 {
@@ -108,7 +104,8 @@ The published package intentionally excludes local runtime state: `config.json` 
   "enabled": true,
   "splitFooterRenderer": true,
   "alternateScreen": true,
-  "alternateScroll": false,
+  "alternateScroll": true,
+  "scrollWhileTyping": true,
   "mouseScroll": false,
   "mouseWheelScrollRows": 3,
   "keyboardScroll": true,
@@ -118,41 +115,44 @@ The published package intentionally excludes local runtime state: `config.json` 
 }
 ```
 
-Invalid or missing values are normalized to bounded defaults when the extension loads configuration.
+### Options
 
-## Compatibility
+| Key | Type | Default | Purpose |
+|-----|------|---------|---------|
+| `debug` | `boolean` | `false` | Enables file-only diagnostics under `debug/debug.log` |
+| `enabled` | `boolean` | `true` | Enables the extension |
+| `splitFooterRenderer` | `boolean` | `true` | Enables the sticky split-footer renderer patch |
+| `alternateScreen` | `boolean` | `true` | Uses an alternate terminal screen while the session is active |
+| `alternateScroll` | `boolean` | `true` | Lets compatible terminals translate wheel input into alternate-screen cursor sequences |
+| `scrollWhileTyping` | `boolean` | `true` | Handles alternate-scroll cursor sequences even while the prompt contains text |
+| `mouseScroll` | `boolean` | `false` | Enables full SGR mouse-wheel capture for terminals without alternate-scroll support |
+| `mouseWheelScrollRows` | `number` | `3` | Rows scrolled per wheel event |
+| `keyboardScroll` | `boolean` | `true` | Enables page-key and home/end history scrolling |
+| `keyboardScrollRows` | `number` | `10` | Rows scrolled per keyboard page event |
+| `minimumHistoryRows` | `number` | `3` | Minimum history viewport height before falling back on very small terminals |
+| `historyViewportLineLimit` | `number` | `200` | Maximum retained renderer-managed history lines before choosing the visible slice |
 
-- `powerline-footer`: compatible by default because `pi-sticky-input` keeps status, widgets, editor, and footer inside the sticky pane instead of replacing singleton editor/footer hooks.
-- `pi-agent-router`: compatible because below-editor widgets remain inside the sticky pane viewport.
-- `pi-startup-redraw-fix`: compatible because `pi-sticky-input` patches the live `TUI.doRender` path and uses terminal clear ordering that does not require startup-redraw-fix's full-clear rewrite.
+## Compatibility notes
+
+- `mouseScroll: false` is the preferred mode when you want terminal/Herdr drag-highlight copy.
+- `/claude-style-scroll on` enables SGR mouse capture. Use it only if alternate-scroll does not work in your terminal and you accept that native selection/link clicks may be captured.
 - Overlays and structurally unknown layouts fall back to Pi's original renderer for safety.
-
-## Debug logging
-
-Debug logging is disabled by default through `"debug": false`. When enabled, logs are appended only to:
-
-```text
-debug/debug.log
-```
-
-The extension does not write debug output to `console`, `stdout`, or `stderr`, and no debug log file is opened when debug logging is disabled.
+- The legacy `PI_STICKY_INPUT_DISABLE_SPLIT_FOOTER=1` environment variable still disables the split-footer patch. The new name is `PI_CLAUDE_STYLE_SCROLL_DISABLE_SPLIT_FOOTER=1`.
 
 ## Development
 
 ```bash
+npm install
+npm test
 npm run typecheck
-npm run test
 npm run build
 npm run package:dry-run
 ```
 
-## Related Pi Extensions
+## Credits
 
-- [pi-tool-display](https://github.com/MasuRii/pi-tool-display) — Compact tool rendering and diff visualization
-- [pi-startup-redraw-fix](https://github.com/MasuRii/pi-startup-redraw-fix) — Fix terminal redraw glitches on startup
-- [pi-hide-messages](https://github.com/MasuRii/pi-hide-messages) — Hide older chat messages without losing context
-- [pi-session-dashboard](https://github.com/MasuRii/pi-session-dashboard) — Localhost browser dashboard of session metrics
+Forked from [`MasuRii/pi-sticky-input`](https://github.com/MasuRii/pi-sticky-input), which provides the original sticky split-footer renderer, terminal-session management, config layering, and tests. This fork changes the default UX to prioritize Claude Code-style scrolling while composing.
 
 ## License
 
-[MIT](LICENSE) © MasuRii
+MIT. See [LICENSE](LICENSE). Original copyright remains with MasuRii.

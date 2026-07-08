@@ -171,7 +171,7 @@ function getUnsupportedTerminalReason(tui: TuiWithInternals): UnsupportedLayout 
     return { reason: "dumb-terminal" };
   }
 
-  if (process.env.PI_STICKY_INPUT_DISABLE_SPLIT_FOOTER === "1") {
+  if ((process.env.PI_CLAUDE_STYLE_SCROLL_DISABLE_SPLIT_FOOTER === "1" || process.env.PI_STICKY_INPUT_DISABLE_SPLIT_FOOTER === "1")) {
     return { reason: "disabled-by-environment" };
   }
 

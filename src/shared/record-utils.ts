@@ -1,5 +1,5 @@
 /**
- * Shared type-guard utilities for pi-sticky-input.
+ * Shared type-guard utilities for pi-claude-style-scroll.
  *
  * Consolidates the per-module `isRecord` type guards that were duplicated across
  * `config/config.ts` and `tui/terminal-session.ts`.
