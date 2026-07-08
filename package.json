@@ -1,6 +1,6 @@
 {
   "name": "pi-claude-style-scroll",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Pi extension for a Claude Code-style pinned composer: scroll message history while typing.",
   "type": "module",
   "main": "./index.ts",

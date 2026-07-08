@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2] - 2026-07-08
+
+### Added
+
+- Added a footer status indicator when the sticky history viewport is scrolled away from the bottom.
+
+### Fixed
+
+- Let Pi's slash/autocomplete menu handle Up/Down arrows while it is open, then resume alternate-scroll history scrolling after the menu closes.
+
 ## [0.3.1] - 2026-07-08
 
 ### Added
