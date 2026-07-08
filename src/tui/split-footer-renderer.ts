@@ -9,11 +9,25 @@ import {
 
 export type StickySplitFooterDiagnostic = (event: string, fields: Record<string, unknown>) => void;
 
+export interface StickySplitFooterViewportStatus {
+  active: boolean;
+  atBottom: boolean;
+  followBottom: boolean;
+  viewportTop: number;
+  minimumViewportTop: number;
+  maximumViewportTop: number;
+  historyRows: number;
+  historyLineCount: number;
+}
+
+export type StickySplitFooterViewportStatusChange = (status: StickySplitFooterViewportStatus | undefined) => void;
+
 export interface StickySplitFooterRendererOptions {
   enabled: boolean;
   minimumHistoryRows: number;
   historyViewportLineLimit: number;
   diagnostic?: StickySplitFooterDiagnostic;
+  onViewportStatusChange?: StickySplitFooterViewportStatusChange;
 }
 
 export interface StickySplitFooterPatchStatus {
@@ -123,6 +137,7 @@ const CURSOR_UP_ROWS_PATTERN = /\x1b\[(\d+)A/g;
 let options: StickySplitFooterRendererOptions = { ...DEFAULT_OPTIONS };
 let patchInstalled = false;
 let lastPatchReason = "not-installed";
+let viewportStatusKeys = new WeakMap<object, string>();
 
 const viewportMetadata = new WeakMap<object, ViewportMetadata>();
 const historyViewportState = new WeakMap<object, HistoryViewportState>();
@@ -536,6 +551,50 @@ function rememberMetadata(tui: object, layout: SplitLayout): void {
   });
 }
 
+function createViewportStatus(tui: object, layout: SplitLayout): StickySplitFooterViewportStatus {
+  const { minimumViewportTop, maximumViewportTop } = getRetainedHistoryBounds(layout.footerStartLine, layout.historyRows);
+  const state = historyViewportState.get(tui);
+  const followBottom = state?.followBottom ?? layout.historyViewportTop >= maximumViewportTop;
+
+  return {
+    active: true,
+    atBottom: followBottom || layout.historyViewportTop >= maximumViewportTop,
+    followBottom,
+    viewportTop: layout.historyViewportTop,
+    minimumViewportTop,
+    maximumViewportTop,
+    historyRows: layout.historyRows,
+    historyLineCount: layout.footerStartLine,
+  };
+}
+
+function getViewportStatusKey(status: StickySplitFooterViewportStatus | undefined): string {
+  if (!status) {
+    return "inactive";
+  }
+
+  return [
+    status.active ? "active" : "inactive",
+    status.atBottom ? "bottom" : "scrolled",
+    status.followBottom ? "follow" : "pinned",
+    status.viewportTop,
+    status.minimumViewportTop,
+    status.maximumViewportTop,
+    status.historyRows,
+    status.historyLineCount,
+  ].join(":");
+}
+
+function notifyViewportStatus(tui: object, status: StickySplitFooterViewportStatus | undefined): void {
+  const key = getViewportStatusKey(status);
+  if (viewportStatusKeys.get(tui) === key) {
+    return;
+  }
+
+  viewportStatusKeys.set(tui, key);
+  options.onViewportStatusChange?.(status);
+}
+
 function updateRenderState(
   tui: TuiWithInternals,
   screenLines: string[],
@@ -648,6 +707,7 @@ function renderBoundedViewport(
   updateRenderState(tui, layout.screenLines, width, height, hardwareCursorRow);
   tui.positionHardwareCursor?.(cursorPos, layout.screenLines.length);
   rememberMetadata(tui, layout);
+  notifyViewportStatus(tui as unknown as object, createViewportStatus(tui as unknown as object, layout));
 }
 
 function forceOriginalRenderer(
@@ -669,6 +729,7 @@ function forceOriginalRenderer(
   });
 
   if (leavingStickyRenderer) {
+    notifyViewportStatus(thisArg as unknown as object, undefined);
     tui.previousLines = [];
     tui.previousWidth = -1;
     tui.previousHeight = -1;
@@ -787,6 +848,8 @@ function patchedDoRender(this: TUI): void {
 }
 
 export function configureStickySplitFooterRenderer(nextOptions: StickySplitFooterRendererOptions): void {
+  const viewportStatusListenerChanged = options.onViewportStatusChange !== nextOptions.onViewportStatusChange;
+
   options = {
     enabled: nextOptions.enabled,
     minimumHistoryRows: Math.max(1, Math.floor(nextOptions.minimumHistoryRows)),
@@ -795,7 +858,12 @@ export function configureStickySplitFooterRenderer(nextOptions: StickySplitFoote
       Math.floor(nextOptions.historyViewportLineLimit),
     ),
     diagnostic: nextOptions.diagnostic,
+    onViewportStatusChange: nextOptions.onViewportStatusChange,
   };
+
+  if (viewportStatusListenerChanged) {
+    viewportStatusKeys = new WeakMap<object, string>();
+  }
 }
 
 function resolveRuntimeTuiPrototype(runtimeTui: TUI | undefined): PatchedTuiPrototype | undefined {
@@ -870,13 +938,26 @@ function updateViewportTop(
   tui: object,
   currentViewportTop: number,
   viewportTop: number,
+  minimumViewportTop: number,
   maximumViewportTop: number,
+  historyRows: number,
+  historyLineCount: number,
 ): StickySplitFooterScrollResult {
   const currentState = historyViewportState.get(tui);
   const followBottom = viewportTop >= maximumViewportTop;
   const changed = viewportTop !== currentViewportTop || currentState?.followBottom !== followBottom;
 
   historyViewportState.set(tui, { viewportTop, followBottom });
+  notifyViewportStatus(tui, {
+    active: true,
+    atBottom: followBottom,
+    followBottom,
+    viewportTop,
+    minimumViewportTop,
+    maximumViewportTop,
+    historyRows,
+    historyLineCount,
+  });
 
   if (changed) {
     runtimeTui.requestRender();
@@ -906,7 +987,16 @@ export function scrollStickySplitFooterViewport(
   );
   const viewportTop = clamp(currentViewportTop + Math.trunc(deltaRows), minimumViewportTop, maximumViewportTop);
 
-  return updateViewportTop(runtimeTui, tui, currentViewportTop, viewportTop, maximumViewportTop);
+  return updateViewportTop(
+    runtimeTui,
+    tui,
+    currentViewportTop,
+    viewportTop,
+    minimumViewportTop,
+    maximumViewportTop,
+    metadata.historyRows,
+    metadata.footerStartLine,
+  );
 }
 
 export function resetStickySplitFooterViewport(runtimeTui?: TUI): void {
@@ -914,8 +1004,10 @@ export function resetStickySplitFooterViewport(runtimeTui?: TUI): void {
     return;
   }
 
-  historyViewportState.delete(runtimeTui as unknown as object);
-  viewportMetadata.delete(runtimeTui as unknown as object);
+  const tui = runtimeTui as unknown as object;
+  notifyViewportStatus(tui, undefined);
+  historyViewportState.delete(tui);
+  viewportMetadata.delete(tui);
 }
 
 export function getStickySplitFooterPatchStatus(): StickySplitFooterPatchStatus {

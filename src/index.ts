@@ -11,10 +11,13 @@ type StickyInputConfigLoadResult = import("./config/config.js").StickyInputConfi
 type StickyInputConfig = import("./config/config.js").StickyInputConfig;
 type DebugLogger = import("./logging/debug-logger.js").DebugLogger;
 type StickySplitFooterPatchStatus = import("./tui/split-footer-renderer.js").StickySplitFooterPatchStatus;
+type StickySplitFooterViewportStatus = import("./tui/split-footer-renderer.js").StickySplitFooterViewportStatus;
 type MouseWheelDirection = import("./tui/terminal-session.js").MouseWheelDirection;
 
 const EXTENSION_ID = "pi-claude-style-scroll";
 const RUNTIME_PATCH_WIDGET_KEY = `${EXTENSION_ID}:runtime-renderer-hook`;
+const SCROLL_STATUS_KEY = `${EXTENSION_ID}:scroll-status`;
+const SCROLLED_STATUS_TEXT = "↑ scrolled";
 const DEFAULT_PATCH_STATUS: StickySplitFooterPatchStatus = {
   installed: false,
   active: false,
@@ -104,7 +107,11 @@ function getRendererEnabled(configResult: StickyInputConfigLoadResult): boolean 
   return config.enabled && config.splitFooterRenderer;
 }
 
-function createRendererOptions(configResult: StickyInputConfigLoadResult, logger: DebugLogger) {
+function createRendererOptions(
+  configResult: StickyInputConfigLoadResult,
+  logger: DebugLogger,
+  onViewportStatusChange?: (status: StickySplitFooterViewportStatus | undefined) => void,
+) {
   const { config } = configResult;
   return {
     enabled: getRendererEnabled(configResult),
@@ -113,6 +120,7 @@ function createRendererOptions(configResult: StickyInputConfigLoadResult, logger
     diagnostic: (event: string, fields: Record<string, unknown>) => {
       logger.log(event, fields);
     },
+    onViewportStatusChange,
   };
 }
 
@@ -164,6 +172,20 @@ function notifyWarnings(ctx: ExtensionContext, warnings: readonly string[]): voi
   for (const warning of warnings) {
     ctx.ui.notify(`${EXTENSION_ID}: ${warning}`, "warning");
   }
+}
+
+function createScrollStatusUpdater(ctx: ExtensionContext): (status: StickySplitFooterViewportStatus | undefined) => void {
+  let visible = false;
+
+  return (status) => {
+    const nextVisible = status?.active === true && !status.atBottom;
+    if (nextVisible === visible) {
+      return;
+    }
+
+    visible = nextVisible;
+    ctx.ui.setStatus(SCROLL_STATUS_KEY, visible ? SCROLLED_STATUS_TEXT : undefined);
+  };
 }
 
 function isEditorTextEmpty(getEditorText: (() => string) | undefined): boolean {
@@ -284,6 +306,7 @@ async function installSplitFooterRendererHook(ctx: ExtensionContext, runtime: Ru
   }
 
   if (!getRendererEnabled(runtime.configResult)) {
+    ctx.ui.setStatus(SCROLL_STATUS_KEY, undefined);
     splitFooterRendererLoader.cached?.configureStickySplitFooterRenderer(createRendererOptions(runtime.configResult, runtime.logger));
     splitFooterRendererLoader.cached?.resetStickySplitFooterViewport(terminalSessionLoader.cached?.getActiveStickyTerminalTui());
     terminalSessionLoader.cached?.deactivateStickyTerminalSession((event, fields) => runtime.logger.log(event, fields));
@@ -296,6 +319,7 @@ async function installSplitFooterRendererHook(ctx: ExtensionContext, runtime: Ru
     loadTerminalSessionModule(),
   ]);
   const patchedTuis = new WeakSet<object>();
+  const updateScrollStatus = createScrollStatusUpdater(ctx);
 
   ctx.ui.setWidget(
     RUNTIME_PATCH_WIDGET_KEY,
@@ -306,12 +330,14 @@ async function installSplitFooterRendererHook(ctx: ExtensionContext, runtime: Ru
 
       patchedTuis.add(tui as unknown as object);
       runtime.patchStatus = splitFooterRenderer.applyStickySplitFooterRendererPatch(
-        createRendererOptions(runtime.configResult, runtime.logger),
+        createRendererOptions(runtime.configResult, runtime.logger, updateScrollStatus),
         tui,
       );
 
       if (runtime.patchStatus.installed && runtime.patchStatus.active) {
         terminalSession.activateStickyTerminalSession(tui, createTerminalSessionOptions(runtime.configResult, runtime.logger));
+      } else {
+        updateScrollStatus(undefined);
       }
 
       const { config } = runtime.configResult;
@@ -472,8 +498,9 @@ export default function stickyInputExtension(pi: ExtensionAPI): void {
     });
   });
 
-  pi.on("session_shutdown", (event) => {
+  pi.on("session_shutdown", (event, ctx) => {
     clearTerminalInputListener();
+    ctx.ui.setStatus(SCROLL_STATUS_KEY, undefined);
     splitFooterRendererLoader.cached?.resetStickySplitFooterViewport(terminalSessionLoader.cached?.getActiveStickyTerminalTui());
 
     if (event.reason === "quit") {

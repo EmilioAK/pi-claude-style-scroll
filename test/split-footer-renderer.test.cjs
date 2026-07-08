@@ -36,8 +36,8 @@ function createRuntimeTuiWithOriginalRenderer() {
   return tui;
 }
 
-function patchRuntimeTui(tui) {
-  return patchBaseRuntimeTui(renderer, tui);
+function patchRuntimeTui(tui, options = {}) {
+  return patchBaseRuntimeTui(renderer, tui, options);
 }
 
 test("typing in the sticky editor only rewrites changed viewport rows after the first render", () => {
@@ -288,6 +288,57 @@ test("history viewport remains pinned when new history arrives while scrolled up
   tui.history.push("history-20", "history-21");
   doRender.call(tui);
   assert.deepEqual(tui.previousLines.slice(0, 5), scrolled);
+});
+
+test("viewport status callback reports bottom and scrolled-up state changes", () => {
+  const statuses = [];
+  const tui = createRuntimeTui();
+  const doRender = patchRuntimeTui(tui, {
+    onViewportStatusChange: (status) => statuses.push(status && {
+      active: status.active,
+      atBottom: status.atBottom,
+      followBottom: status.followBottom,
+      viewportTop: status.viewportTop,
+    }),
+  });
+
+  doRender.call(tui);
+  assert.deepEqual(statuses.at(-1), {
+    active: true,
+    atBottom: true,
+    followBottom: true,
+    viewportTop: 15,
+  });
+
+  renderer.scrollStickySplitFooterViewport(tui, -4);
+  assert.deepEqual(statuses.at(-1), {
+    active: true,
+    atBottom: false,
+    followBottom: false,
+    viewportTop: 11,
+  });
+
+  renderer.scrollStickySplitFooterViewport(tui, Number.MAX_SAFE_INTEGER);
+  assert.deepEqual(statuses.at(-1), {
+    active: true,
+    atBottom: true,
+    followBottom: true,
+    viewportTop: 15,
+  });
+});
+
+test("viewport status callback reports inactive when sticky rendering falls back", () => {
+  const statuses = [];
+  const tui = createRuntimeTuiWithOriginalRenderer();
+  const doRender = patchRuntimeTui(tui, { onViewportStatusChange: (status) => statuses.push(status) });
+
+  doRender.call(tui);
+  renderer.scrollStickySplitFooterViewport(tui, -4);
+  assert.equal(statuses.at(-1)?.atBottom, false);
+
+  tui.overlayStack.push({});
+  doRender.call(tui);
+  assert.equal(statuses.at(-1), undefined);
 });
 
 test("expanded long tool output can scroll above the retained history line limit", () => {
