@@ -9,7 +9,7 @@ Claude Code-style scrolling for Pi: keep the input box pinned and scroll the mes
 
 </div>
 
-`pi-claude-style-scroll` is a Pi extension that makes Pi's chat UI feel more like Claude Code:
+`pi-claude-style-scroll` is a Pi extension that makes Pi's input box behave more like Claude Code's pinned composer:
 
 - the composer/input box stays pinned at the bottom;
 - status widgets and footer controls stay with the composer;
@@ -19,7 +19,7 @@ Claude Code-style scrolling for Pi: keep the input box pinned and scroll the mes
 
 This is a fork of [`MasuRii/pi-sticky-input`](https://github.com/MasuRii/pi-sticky-input). The fork keeps the sticky split-footer renderer and changes the default scrolling UX around alternate-scroll so Pi can scroll while composing.
 
-> Not affiliated with Anthropic or Claude Code. "Claude Code-style" describes the scrolling UX only.
+> Not affiliated with Anthropic or Claude Code. "Claude Code-style" describes the pinned input + scroll-while-typing behavior only.
 
 ## Why this exists
 
@@ -151,7 +151,7 @@ npm run package:dry-run
 
 ## Credits
 
-Forked from [`MasuRii/pi-sticky-input`](https://github.com/MasuRii/pi-sticky-input), which provides the original sticky split-footer renderer, terminal-session management, config layering, and tests. This fork changes the default UX to prioritize Claude Code-style scrolling while composing.
+Forked from [`MasuRii/pi-sticky-input`](https://github.com/MasuRii/pi-sticky-input), which provides the original sticky split-footer renderer, terminal-session management, config layering, and tests. This fork changes the default input/scroll behavior to prioritize a pinned composer that can scroll message history while you type.
 
 ## License
 
