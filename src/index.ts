@@ -214,7 +214,11 @@ function handleStickyTerminalInput(
   const editorTextEmpty = isEditorTextEmpty(getEditorText);
 
   if (config.alternateScroll) {
-    const direction = terminalSession.parseAlternateScrollInput(data, { allowCursorKeys: editorTextEmpty });
+    // Alternate-scroll wheel events arrive as cursor-up/cursor-down sequences.
+    // Handle them even while the prompt has text so the message viewport can be
+    // scrolled while composing. Trade-off: real Up/Down arrow keys are
+    // indistinguishable from wheel events at this layer and will also scroll.
+    const direction = terminalSession.parseAlternateScrollInput(data, { allowCursorKeys: true });
     if (direction) {
       scrollAndLogWheelEvent(runtime, splitFooterRenderer, tui, direction, config.mouseWheelScrollRows, "terminal_alternate_scroll");
       return { consume: true };

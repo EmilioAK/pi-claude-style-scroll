@@ -294,11 +294,25 @@ function getMouseWheelDirection(rawButton: number): MouseWheelDirection | undefi
 }
 
 export function parseAlternateScrollInput(
-  _data: string,
-  _options: { allowCursorKeys?: boolean } = {},
+  data: string,
+  options: { allowCursorKeys?: boolean } = {},
 ): MouseWheelDirection | undefined {
   // Alternate-scroll wheel input is encoded as cursor keys, which are indistinguishable
-  // from real arrow keys. Leave those sequences to the focused editor or modal.
+  // from real arrow keys. Only treat them as scroll events when the caller permits
+  // cursor-key interpretation; otherwise leave cursor keys to the focused editor
+  // or modal.
+  if (options.allowCursorKeys !== true) {
+    return undefined;
+  }
+
+  if (matchesKey(data, "up") || data === "\x1b[A" || data === "\x1bOA") {
+    return "up";
+  }
+
+  if (matchesKey(data, "down") || data === "\x1b[B" || data === "\x1bOB") {
+    return "down";
+  }
+
   return undefined;
 }
 
