@@ -1,7 +1,7 @@
 {
   "name": "pi-claude-style-scroll",
   "version": "0.3.0",
-  "description": "Pi extension for Claude Code-style scrolling: pinned input with message-history scroll while typing.",
+  "description": "Pi extension for a Claude Code-style pinned composer: scroll message history while typing.",
   "type": "module",
   "main": "./index.ts",
   "exports": {
@@ -41,7 +41,7 @@
     "pinned-composer",
     "sticky-scroll"
   ],
-  "author": "MasuRii",
+  "author": "EmilioAK (https://github.com/EmilioAK)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -74,5 +74,8 @@
   "overrides": {
     "protobufjs": "7.6.3",
     "ws": "8.21.0"
-  }
+  },
+  "contributors": [
+    "MasuRii (https://github.com/MasuRii)"
+  ]
 }
