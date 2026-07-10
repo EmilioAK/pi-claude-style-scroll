@@ -28,7 +28,7 @@ test("default terminal compatibility preserves native selection and links", () =
   assert.equal(config.DEFAULT_STICKY_INPUT_CONFIG.alternateScroll, true);
 });
 
-test("alternate screen is restored after TUI stop, not before it", () => {
+test("alternate screen stop restores the main-screen keyboard protocol stack", () => {
   const { events, tui } = createRecordingTui(() => events.push("original-stop"));
 
   terminalSession.activateStickyTerminalSession(tui, {
@@ -42,7 +42,26 @@ test("alternate screen is restored after TUI stop, not before it", () => {
 
   tui.stop();
 
-  assert.deepEqual(events, ["original-stop", "\x1b[?1006l\x1b[?1000l\x1b[?1049l"]);
+  assert.deepEqual(events, [
+    "original-stop",
+    "\x1b[?1006l\x1b[?1000l\x1b[?1049l",
+    "\x1b[<u",
+  ]);
+});
+
+test("main-screen sessions do not pop the keyboard protocol during TUI stop", () => {
+  const { events, tui } = createRecordingTui(() => events.push("original-stop"));
+
+  terminalSession.activateStickyTerminalSession(tui, {
+    alternateScreen: false,
+    alternateScroll: true,
+    mouseScroll: false,
+  });
+  events.length = 0;
+
+  tui.stop();
+
+  assert.deepEqual(events, ["original-stop"]);
 });
 
 test("mouse tracking can toggle without leaving alternate screen", () => {

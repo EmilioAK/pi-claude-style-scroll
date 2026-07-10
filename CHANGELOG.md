@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Restored the main-screen Kitty keyboard protocol state after alternate-screen shutdown, preventing shells and multiplexers from receiving Pi-style CSI-u key sequences after Pi exits.
+
 ## [0.3.2] - 2026-07-08
 
 ### Added

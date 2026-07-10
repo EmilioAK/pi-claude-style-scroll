@@ -30,6 +30,7 @@ type TuiWithStopPatch = TUI & {
 
 const ENTER_ALTERNATE_SCREEN_SEQUENCE = "\x1b[?1049h\x1b[H\x1b[2J";
 const EXIT_ALTERNATE_SCREEN_SEQUENCE = "\x1b[?1049l";
+const POP_KEYBOARD_PROTOCOL_SEQUENCE = "\x1b[<u";
 const ENABLE_ALTERNATE_SCROLL_SEQUENCE = "\x1b[?1007h";
 const DISABLE_ALTERNATE_SCROLL_SEQUENCE = "\x1b[?1007l";
 const ENABLE_SGR_MOUSE_SEQUENCE = "\x1b[?1000h\x1b[?1006h";
@@ -127,10 +128,19 @@ function installStopPatch(tui: TUI): void {
   const originalStop = patchedTui.stop;
   patchedTui.__piStickyInputStopPatch = { originalStop };
   patchedTui.stop = function piStickyInputStopPatch(this: TUI): void {
+    const mustRestoreMainScreenKeyboardMode = activeTerminalModes?.tui === this
+      && activeTerminalModes.alternateScreen;
     try {
       originalStop.call(this);
     } finally {
       deactivateStickyTerminalSession();
+      if (mustRestoreMainScreenKeyboardMode) {
+        // Kitty keyboard mode stacks are independent for the main and alternate
+        // screens. Pi pushes on the main screen before this extension enters the
+        // alternate screen, but its normal shutdown pop applies to the alternate
+        // screen. Once the main screen is restored, balance Pi's original push.
+        getTerminalWrite(this)?.(POP_KEYBOARD_PROTOCOL_SEQUENCE);
+      }
     }
   };
 }
