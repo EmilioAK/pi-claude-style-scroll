@@ -140,6 +140,12 @@ cp config/config.example.json ~/.pi/agent/extensions/pi-claude-style-scroll/conf
 
 ## Compatibility notes
 
+Pi's fullscreen mode (which is the default starting with 1.0) already keeps the editor pinned while the transcript
+scrolls. In that mode, this extension leaves Pi's renderer, terminal settings, and input handling unchanged. The
+`/claude-style-scroll` command reports that Pi handles scrolling rather than enabling the extension's mouse capture. The
+custom renderer remains available on compatible older renderers. Renderers without the required internal fields are left
+unchanged.
+
 - `mouseScroll: false` is the preferred mode when you want terminal/Herdr drag-highlight copy.
 - `/claude-style-scroll on` enables SGR mouse capture. Use it only if alternate-scroll does not work in your terminal and you accept that native selection/link clicks may be captured.
 - Overlays and structurally unknown layouts fall back to Pi's original renderer for safety.

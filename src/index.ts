@@ -230,7 +230,7 @@ function handleStickyTerminalInput(
   const { config } = runtime.configResult;
   const tui = terminalSession.getActiveStickyTerminalTui();
 
-  if (!terminalSession.shouldHandleStickyTerminalInput(tui)) {
+  if (!tui || !terminalSession.shouldHandleStickyTerminalInput(tui)) {
     return undefined;
   }
 
@@ -410,6 +410,11 @@ export default function stickyInputExtension(pi: ExtensionAPI): void {
       }
 
       const currentRuntime = await getRuntimeState(ctx.cwd);
+
+      if (currentRuntime.patchStatus.reason === "native-fullscreen-scrolling") {
+        ctx.ui.notify("Pi's fullscreen mode provides pinned-editor scrolling. pi-claude-style-scroll leaves its terminal settings and input handling unchanged.", "info");
+        return;
+      }
 
       if (action.type === "status") {
         ctx.ui.notify(command.getStickyMouseScrollStatusMessage(currentRuntime.configResult.config.mouseScroll), "info");

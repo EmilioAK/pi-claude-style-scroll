@@ -723,7 +723,7 @@ function forceOriginalRenderer(
     reason,
     width: tui.terminal?.columns,
     height: tui.terminal?.rows,
-    previousScreenRows: tui.previousLines.length,
+    previousScreenRows: Array.isArray(tui.previousLines) ? tui.previousLines.length : undefined,
     leavingStickyRenderer,
     ...fields,
   });
@@ -886,9 +886,18 @@ export function applyStickySplitFooterRendererPatch(
   configureStickySplitFooterRenderer(nextOptions);
 
   const prototype = resolveRuntimeTuiPrototype(runtimeTui);
-  if (!prototype) {
+  if (!runtimeTui || !prototype) {
     lastPatchReason = "awaiting-runtime-tui-instance";
     return { installed: patchInstalled, active: patchInstalled && options.enabled, reason: lastPatchReason };
+  }
+
+  const nativeFullscreen = "mode" in runtimeTui && runtimeTui.mode === "fullscreen";
+  if (nativeFullscreen || !hasRequiredInternals(getTuiInternals(runtimeTui))) {
+    patchInstalled = false;
+    lastPatchReason = nativeFullscreen
+      ? "native-fullscreen-scrolling"
+      : "missing-required-tui-internals";
+    return { installed: false, active: false, reason: lastPatchReason };
   }
 
   if (prototype.__piStickyInputPatched) {
